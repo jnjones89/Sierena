@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sirena Flow — Turn Leads Into Confirmed Bookings</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand-navy:#28346A;--brand-indigo:#374589;--brand-mid:#4F5C9C;--brand-lavender:#A4B4F0;--brand-lavender-soft:#B1C2FC;
+    --bg-page:#EEF2FF;--bg-section:#E7EEFF;--bg-card:#F7FAFF;--text-main:#111827;--text-muted:#5A5C68;
+    --border-soft:rgba(40,52,106,0.12);--border-mid:rgba(40,52,106,0.18);--white:#FFFFFF;--charcoal:#111827;
+    --blush:#E7EEFF;--blush-deep:#C7D5F8;--border:rgba(40,52,106,0.12);--border-strong:rgba(40,52,106,0.18);
+    --taupe:#7A7E9A;--text:#111827;
+  }
+  .bf-ocean-wash{background:linear-gradient(135deg,#EEF2FF 0%,#E7EEFF 40%,#EEF2FF 70%,#F7FAFF 100%);}
+  .bf-mermaid-overlay{position:relative;}
+  .bf-mermaid-overlay::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0.045;background-image:radial-gradient(circle at 1px 1px,#374589 1px,transparent 0);background-size:28px 28px;border-radius:inherit;}
+  .bf-mermaid-overlay>*{position:relative;z-index:1;}
+  .bf-wave-divider{width:100%;height:3px;border:none;margin:0;background:linear-gradient(90deg,transparent 0%,var(--brand-lavender-soft) 15%,var(--brand-lavender) 40%,var(--brand-mid) 65%,var(--brand-indigo) 85%,transparent 100%);opacity:0.8;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg-page);color:var(--text-main);font-family:'Jost',sans-serif;font-weight:300;overflow-x:hidden;}
+  h1,h2,h3{font-family:'Playfair Display',serif;line-height:1.15;color:var(--charcoal);}
+  h1{font-size:clamp(2.1rem,5.5vw,5rem);}h2{font-size:clamp(1.8rem,3.5vw,3rem);}h3{font-size:clamp(1.2rem,1.8vw,1.6rem);}
+  p{line-height:1.85;color:var(--text-muted);font-size:1.05rem;}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:1.4rem 5rem;display:flex;align-items:center;justify-content:space-between;background:rgba(238,242,255,0.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border-soft);}
+  .logo-img{height:42px;width:auto;display:block;object-fit:contain;flex-shrink:0;}
+  .logo-wrap{display:flex;align-items:center;gap:0.6rem;text-decoration:none;}
+  .logo-wrap .logo-text{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:500;color:var(--charcoal);letter-spacing:0.03em;}
+  .logo-wrap .logo-text span{color:var(--brand-indigo);}
+  .nav-links{display:flex;align-items:center;gap:2.5rem;list-style:none;}
+  .nav-links a{color:var(--text-muted);text-decoration:none;font-size:0.8rem;letter-spacing:0.12em;text-transform:uppercase;transition:color 0.2s;font-weight:400;}
+  .nav-links a:hover{color:var(--brand-indigo);}
+  .nav-cta{background:var(--brand-navy)!important;color:var(--white)!important;padding:0.65rem 1.5rem;border-radius:10px;}
+  .nav-cta:hover{background:var(--brand-indigo)!important;color:var(--white)!important;}
+  .mobile-menu-btn{display:none;background:none;border:none;cursor:pointer;color:var(--charcoal);padding:0.4rem;margin:-0.4rem;border-radius:8px;line-height:0;}
+  .mobile-menu-btn .icon-close{display:none;}
+  nav.is-open .mobile-menu-btn .icon-open{display:none;}
+  nav.is-open .mobile-menu-btn .icon-close{display:block;}
+  .mobile-menu-btn:focus-visible,.nav-links a:focus-visible{outline:2px solid var(--brand-indigo);outline-offset:3px;}
+  @media(min-width:1181px) and (max-width:1320px){nav{padding:1.4rem 3rem;}.nav-links{gap:1.6rem;}}
+  @media(min-width:1001px) and (max-width:1180px){
+    nav{padding:1.2rem 1.75rem;}
+    .nav-links{gap:1.1rem;}
+    .nav-links a{font-size:0.72rem;letter-spacing:0.09em;white-space:nowrap;}
+    .nav-cta{padding:0.6rem 1rem!important;}
+    .logo-name{font-size:1.1rem;}
+  }
+  @media(max-width:1000px){
+    nav{padding:1.2rem 1.5rem;}
+    .nav-links{display:none;}
+    .mobile-menu-btn{display:block;}
+    nav.is-open .nav-links{display:flex;flex-direction:column;align-items:flex-start;position:absolute;top:100%;left:0;right:0;background:var(--bg-page);padding:1.5rem 1.5rem 2rem;border-bottom:1px solid var(--border-soft);box-shadow:0 12px 30px rgba(40,52,106,0.10);gap:0.25rem;max-height:calc(100vh - 80px);overflow-y:auto;}
+    nav.is-open .nav-links li{width:100%;}
+    nav.is-open .nav-links a{display:block;padding:0.85rem 0;font-size:0.85rem;}
+    nav.is-open .nav-links .nav-cta{display:block;text-align:center;margin-top:0.75rem;padding:0.95rem 1.5rem;}
+  }
+  .page{display:none;}
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:9rem 5rem 5rem;position:relative;overflow:hidden;background:var(--bg-page);}
+  .hero-decor{position:absolute;right:-5%;top:50%;transform:translateY(-50%);width:52vw;height:90vh;background:radial-gradient(ellipse at 60% 30%,rgba(177,194,252,0.35) 0%,rgba(164,180,240,0.25) 35%,transparent 70%);border-radius:60% 40% 55% 45%/50% 60% 40% 50%;z-index:0;}
+  .hero-decor-2{position:absolute;left:-8%;bottom:-10%;width:30vw;height:40vh;background:radial-gradient(ellipse,rgba(177,194,252,0.18) 0%,transparent 70%);border-radius:50%;z-index:0;}
+  .hero-lines{position:absolute;right:5%;top:15%;width:40vw;height:70vh;z-index:1;opacity:0.18;}
+  .hero-lines svg{width:100%;height:100%;}
+  .hero-content{position:relative;z-index:2;max-width:700px;}
+  .hero-eyebrow{font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--brand-mid);margin-bottom:1.8rem;display:flex;align-items:center;gap:1rem;}
+  .hero-eyebrow::before{content:'';display:block;width:32px;height:1px;background:var(--brand-lavender);}
+  .hero h1{margin-bottom:1.5rem;font-weight:400;}
+  .hero h1 em{font-style:italic;color:var(--brand-indigo);}
+  .hero-sub{font-size:1.12rem;color:var(--text-muted);max-width:520px;margin-bottom:3rem;}
+  .hero-ctas{display:flex;gap:1rem;flex-wrap:wrap;}
+  .hero-trust{margin-top:4.5rem;display:flex;align-items:center;gap:2rem;flex-wrap:wrap;padding-top:2.5rem;border-top:1px solid var(--border-mid);}
+  .trust-item{font-size:0.78rem;color:var(--taupe);letter-spacing:0.06em;}
+  .trust-divider{width:1px;height:20px;background:var(--border-mid);}
+  .btn-primary{background:var(--brand-navy);color:var(--white);padding:0.95rem 2.2rem;border:1px solid transparent;cursor:pointer;font-family:'Jost',sans-serif;font-size:0.8rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;text-decoration:none;display:inline-block;transition:all 0.25s;border-radius:10px;}
+  .btn-primary:hover{background:var(--brand-indigo);transform:translateY(-1px);box-shadow:0 8px 28px rgba(40,52,106,0.22);}
+  .btn-secondary{background:transparent;color:var(--brand-navy);padding:0.95rem 2.2rem;border:1px solid rgba(40,52,106,0.22);cursor:pointer;font-family:'Jost',sans-serif;font-size:0.8rem;font-weight:400;letter-spacing:0.07em;text-transform:uppercase;text-decoration:none;display:inline-block;transition:all 0.25s;border-radius:10px;}
+  .btn-secondary:hover{border-color:var(--brand-indigo);color:var(--brand-indigo);background:rgba(40,52,106,0.04);}
+  section{padding:7rem 5rem;}
+  .section-label{font-size:0.72rem;letter-spacing:0.16em;text-transform:uppercase;color:var(--brand-mid);margin-bottom:1.2rem;display:flex;align-items:center;gap:0.8rem;}
+  .section-label::before{content:'';display:block;width:20px;height:1px;background:var(--brand-lavender);}
+  .section-title{margin-bottom:1.5rem;}
+  .section-sub{max-width:580px;margin-bottom:3.5rem;}
+  .credibility{background:var(--brand-navy);padding:2.2rem 5rem;display:flex;align-items:stretch;gap:0;flex-wrap:wrap;justify-content:center;}
+  .cred-item{display:flex;align-items:center;gap:0.75rem;padding:0.9rem 1.5rem;font-family:'Jost',sans-serif;font-size:0.85rem;font-weight:500;letter-spacing:0.05em;color:rgba(255,255,255,0.82);border-right:1px solid rgba(255,255,255,0.1);justify-content:center;white-space:nowrap;}
+  .cred-item:last-child{border-right:none;}
+  .cred-icon{color:var(--brand-lavender);font-size:0.6rem;flex-shrink:0;}
+  .cred-item--highlight{color:#FFFFFF;font-weight:600;font-size:0.88rem;background:rgba(255,255,255,0.07);border-right:1px solid rgba(255,255,255,0.1);letter-spacing:0.04em;padding:0.9rem 1.5rem;white-space:nowrap;}
+  .cred-item--highlight strong{font-weight:700;color:var(--brand-lavender-soft);}
+  .cred-icon-highlight{color:var(--brand-lavender-soft);font-size:0.65rem;flex-shrink:0;}
+  .cred-item--days{color:var(--brand-lavender-soft);font-weight:700;font-size:0.9rem;letter-spacing:0.04em;}
+  .hero-proof-line{display:inline-flex;align-items:center;gap:0.65rem;margin-top:1.6rem;padding:0.6rem 1.2rem;background:rgba(40,52,106,0.07);border:1px solid rgba(40,52,106,0.14);border-radius:999px;font-size:0.9rem;color:var(--brand-navy);letter-spacing:0.01em;font-family:'Jost',sans-serif;}
+  .hero-proof-line strong{font-weight:600;}
+  .hero-proof-icon{font-size:0.55rem;color:var(--brand-indigo);flex-shrink:0;}
+  .hero-slogan{font-family:'Playfair Display',serif;font-size:clamp(1.1rem,2vw,1.45rem);font-style:italic;font-weight:400;color:var(--brand-indigo);letter-spacing:0.01em;margin-bottom:1.4rem;display:inline-flex;align-items:center;gap:0.6rem;padding:0.55rem 1.3rem 0.55rem 0;border-bottom:2px solid var(--brand-lavender);}
+  .leak-section{background:var(--bg-section);}
+  .leak-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border-mid);margin-top:3rem;border:1px solid var(--border-mid);}
+  @media(max-width:900px){.leak-grid{grid-template-columns:1fr;}}
+  @media(min-width:901px) and (max-width:1100px){.leak-grid{grid-template-columns:repeat(2,1fr);}}
+  .leak-card{background:var(--white);padding:2.5rem;transition:background 0.3s;}
+  .leak-card:hover{background:#EEF2FF;}
+  .leak-icon{margin-bottom:1.2rem;}
+  .leak-icon svg{width:28px;height:28px;}
+  .leak-card h3{color:var(--charcoal);font-size:0.97rem;margin-bottom:0.6rem;font-family:'Jost',sans-serif;font-weight:500;}
+  .leak-card p{font-size:0.9rem;}
+  .included-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.5rem;margin-top:3rem;}
+  .included-item{border:1px solid var(--border-soft);padding:2rem;display:flex;gap:1.2rem;align-items:flex-start;background:var(--bg-card);transition:box-shadow 0.25s,border-color 0.25s;border-radius:8px;}
+  .included-item:hover{border-color:var(--brand-lavender);box-shadow:0 4px 24px rgba(40,52,106,0.10);}
+  .included-check{color:var(--brand-mid);font-size:0.85rem;margin-top:0.3rem;flex-shrink:0;}
+  .included-micro{font-size:0.65rem;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--brand-navy);margin-bottom:0.35rem;font-family:'Jost',sans-serif;opacity:0.75;}
+  .included-item h4{color:var(--charcoal);font-size:0.95rem;margin-bottom:0.3rem;font-family:'Jost',sans-serif;font-weight:500;}
+  .included-item p{font-size:0.87rem;}
+  
+  
+  
+  
+  
+  .who-section{background:var(--bg-section);}
+  .who-list{display:flex;flex-direction:column;max-width:680px;margin-top:3rem;}
+  .who-item{padding:1.3rem 0;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;gap:1.5rem;font-size:1rem;color:var(--text-main);}
+  .who-dot{width:5px;height:5px;border-radius:50%;background:var(--brand-indigo);flex-shrink:0;}
+  
+  
+  
+  
+  
+  
+  
+  
+  .final-cta{background:radial-gradient(circle at center,#1A275A 0%,#0D1638 55%,#09112C 100%);text-align:center;padding:7rem 5rem;position:relative;overflow:hidden;}
+  .final-cta-decor{position:absolute;inset:0;background:radial-gradient(ellipse 60% 70% at 50% 50%,rgba(177,194,252,0.08) 0%,transparent 70%);}
+  .final-cta-content{position:relative;z-index:1;max-width:600px;margin:0 auto;}
+  .final-cta .section-label{justify-content:center;color:var(--brand-lavender-soft);}
+  .final-cta .section-label::before{background:var(--brand-lavender);}
+  .final-cta h2{color:var(--white);margin-bottom:1.2rem;}
+  .final-cta p{margin-bottom:2.5rem;font-size:1.08rem;color:var(--taupe);}
+  .final-cta .btn-secondary{color:var(--taupe);border-color:rgba(177,194,252,0.28);}
+  .final-cta .btn-secondary:hover{color:var(--brand-lavender-soft);border-color:var(--brand-lavender);background:rgba(164,180,240,0.1);}
+  .final-cta .btn-primary{background:var(--brand-indigo);}
+  .final-cta .btn-primary:hover{background:var(--brand-mid);}
+  .pricing-anchor p{color:rgba(177,194,252,0.75)!important;}
+  .pricing-anchor strong{color:var(--white)!important;}
+  footer{background:#060d20;padding:3rem 5rem;border-top:1px solid rgba(177,194,252,0.1);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1.5rem;}
+  .footer-logo{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--white);}
+  .footer-logo span{color:var(--brand-lavender-soft);}
+  .footer-info{font-size:0.78rem;color:var(--taupe);}
+  .footer-links{display:flex;gap:1.5rem;}
+  .footer-links a{font-size:0.78rem;color:var(--taupe);text-decoration:none;transition:color 0.2s;}
+  .footer-links a:hover{color:var(--brand-lavender-soft);}
+  .footer-setup{font-size:0.75rem;color:var(--brand-lavender-soft);margin-top:0.3rem;opacity:0.85;}
+  .steps{max-width:820px;margin:4rem auto 0;}
+  .step{display:grid;grid-template-columns:70px 1fr;gap:2.5rem;padding:3rem 0;border-bottom:1px solid var(--border-mid);align-items:start;}
+  .step-num{font-family:'Playfair Display',serif;font-size:3.5rem;color:var(--brand-lavender);line-height:1;text-align:center;font-weight:400;}
+  .step h3{color:var(--charcoal);margin-bottom:0.8rem;font-size:1.25rem;}
+  .step ul{list-style:none;display:flex;flex-direction:column;gap:0.5rem;margin-top:0.8rem;}
+  .step ul li{font-size:0.92rem;color:var(--text-muted);display:flex;gap:0.8rem;}
+  .step ul li::before{content:'—';color:var(--brand-lavender);flex-shrink:0;}
+  .audit-intro{max-width:660px;}
+  .confidential-note{background:var(--bg-section);border-left:3px solid var(--brand-lavender);padding:1rem 1.5rem;margin-top:2rem;font-size:0.87rem;color:var(--text-muted);}
+  .audit-form{max-width:680px;margin-top:4rem;}
+  .audit-question{margin-bottom:3rem;}
+  .question-num{font-size:0.7rem;color:var(--brand-mid);letter-spacing:0.18em;text-transform:uppercase;margin-bottom:0.8rem;}
+  .audit-question h3{color:var(--charcoal);font-family:'Jost',sans-serif;font-weight:400;font-size:1.05rem;margin-bottom:1.2rem;}
+  .options{display:flex;flex-direction:column;gap:0.6rem;}
+  .option-label{display:flex;align-items:center;gap:1rem;padding:0.9rem 1.3rem;border:1px solid var(--border-mid);cursor:pointer;transition:all 0.2s;font-size:0.92rem;color:var(--text-muted);background:var(--white);border-radius:6px;}
+  .option-label:hover{border-color:var(--brand-lavender);color:var(--text-main);background:var(--bg-section);}
+  .option-label.selected{border-color:var(--brand-indigo);color:var(--brand-navy);background:rgba(40,52,106,0.04);}
+  .option-label input{accent-color:var(--brand-indigo);}
+  .closer-math{background:var(--bg-section);border:1px solid var(--border-soft);padding:2rem;margin:2rem 0;border-radius:8px;}
+  .closer-math>p{color:var(--text-main);font-size:0.95rem;margin-bottom:1rem;}
+  .audit-result{display:none;text-align:center;padding:4rem 2rem;background:var(--bg-section);border:1px solid var(--border-soft);margin-top:3rem;border-radius:10px;}
+  .audit-result.show{display:block;}
+  .leak-score{font-family:'Playfair Display',serif;font-size:3.5rem;margin-bottom:0.5rem;font-style:italic;}
+  .leak-score.low{color:#4a9a6a;}.leak-score.moderate{color:var(--brand-mid);}.leak-score.high{color:var(--brand-indigo);}
+  .audit-result h3{color:var(--charcoal);margin-bottom:1rem;font-size:1.3rem;}
+  .audit-result p{max-width:480px;margin:0 auto 2rem;}
+  .ornament{text-align:center;color:var(--taupe);font-size:1rem;letter-spacing:0.5em;margin:2rem 0;opacity:0.5;}
+  .book-layout{display:grid;grid-template-columns:1.2fr 0.8fr;gap:5rem;max-width:1080px;}
+  .form-group{margin-bottom:1.5rem;}
+  .form-group label{display:block;font-size:0.72rem;color:var(--brand-mid);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.5rem;}
+  .form-group input,.form-group select{width:100%;background:var(--white);border:1px solid rgba(40,52,106,0.14);color:var(--text-main);padding:0.85rem 1rem;font-family:'Jost',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s,box-shadow 0.2s;border-radius:6px;}
+  .form-group input:focus,.form-group select:focus{border-color:var(--brand-mid);box-shadow:0 0 0 3px rgba(79,92,156,0.12);}
+  .form-group input::placeholder{color:var(--taupe);}
+  .form-helper{font-size:0.77rem;color:var(--taupe);margin-top:0.4rem;}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+  .book-side h3{color:var(--charcoal);margin-bottom:2rem;font-family:'Jost',sans-serif;font-weight:500;font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em;}
+  .contact-item{display:flex;gap:1rem;align-items:flex-start;margin-bottom:1.8rem;}
+  .contact-icon{color:var(--brand-mid);margin-top:0.1rem;font-size:0.9rem;}
+  .contact-item h4{color:var(--text-main);font-size:0.88rem;margin-bottom:0.2rem;font-family:'Jost',sans-serif;font-weight:500;}
+  .contact-item p{font-size:0.88rem;}
+  .faq{margin-top:6rem;max-width:800px;}
+  .faq h2{color:var(--charcoal);margin-bottom:3rem;}
+  .faq details{border-bottom:1px solid var(--border-mid);padding:1.5rem 0;}
+  .faq summary{color:var(--text-main);font-size:0.98rem;display:flex;justify-content:space-between;align-items:center;cursor:pointer;list-style:none;font-family:'Jost',sans-serif;font-weight:400;}
+  .faq summary::-webkit-details-marker{display:none;}
+  .faq summary::after{content:'+';color:var(--brand-indigo);font-size:1.2rem;flex-shrink:0;margin-left:1rem;transition:transform 0.25s;}
+  .faq details[open] summary::after{transform:rotate(45deg);}
+  .faq details p{color:var(--text-muted);font-size:0.93rem;padding-top:1rem;line-height:1.85;}
+  .sms-consent{display:flex;align-items:flex-start;gap:0.8rem;margin:0.5rem 0 1.5rem;padding:1.1rem 1.3rem;background:var(--bg-section);border:1px solid var(--border-soft);border-radius:8px;}
+  .sms-consent input[type="checkbox"]{width:18px;height:18px;flex-shrink:0;margin-top:0.15rem;accent-color:var(--brand-indigo);cursor:pointer;}
+  .sms-consent label{font-size:0.8rem;line-height:1.65;color:var(--text-muted);cursor:pointer;}
+  .sms-consent label a{color:var(--brand-indigo);text-decoration:underline;}
+  .legal-page{padding:11rem 5rem 6rem;max-width:820px;margin:0 auto;}
+  .legal-page h1{margin-bottom:0.5rem;}
+  .legal-page .legal-updated{font-size:0.82rem;color:var(--taupe);letter-spacing:0.04em;margin-bottom:3rem;}
+  .legal-page h2{font-size:1.15rem;color:var(--brand-indigo);font-family:'Jost',sans-serif;text-transform:uppercase;letter-spacing:0.08em;font-weight:500;margin:2.6rem 0 0.9rem;}
+  .legal-page p, .legal-page li{font-size:0.95rem;color:var(--text-muted);margin-bottom:0.9rem;}
+  .legal-page ul{padding-left:1.4rem;margin-bottom:1.2rem;}
+  .legal-page a{color:var(--brand-indigo);}
+  .legal-page strong{color:var(--charcoal);font-weight:500;}
+  @media(max-width:900px){.legal-page{padding:9rem 1.5rem 4rem;}}
+  .modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(20,28,60,0.72);overflow-y:auto;padding:3rem 2rem;}
+  .modal-overlay.show{display:flex;align-items:flex-start;justify-content:center;}
+  .modal-box{background:var(--bg-card);border:1px solid var(--border-mid);padding:3.5rem;max-width:680px;width:100%;position:relative;border-radius:8px;}
+  .modal-close{position:absolute;top:1.5rem;right:1.5rem;background:none;border:none;color:var(--taupe);cursor:pointer;font-size:1.1rem;}
+  .modal-box h2{color:var(--charcoal);margin-bottom:2rem;}
+  .modal-box h3{color:var(--brand-indigo);font-size:0.82rem;font-family:'Jost',sans-serif;text-transform:uppercase;letter-spacing:0.1em;margin:2rem 0 0.5rem;}
+  .modal-box p{font-size:0.93rem;margin-bottom:0.8rem;}
+  #sticky-cta{position:fixed;bottom:2rem;right:92px;z-index:150;opacity:0;transform:translateY(12px);pointer-events:none;transition:opacity 0.3s,transform 0.3s;}
+  #sticky-cta.visible{opacity:1;transform:translateY(0);pointer-events:all;}
+  #sticky-cta a{display:inline-flex;align-items:center;gap:0.5rem;background:var(--brand-navy);color:var(--white);padding:0.85rem 1.6rem;border-radius:50px;font-family:'Jost',sans-serif;font-size:0.78rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;text-decoration:none;box-shadow:0 8px 28px rgba(40,52,106,0.28);transition:background 0.2s,transform 0.2s;}
+  #sticky-cta a:hover{background:var(--brand-indigo);transform:translateY(-2px);}
+  #sticky-cta-mobile{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:#0d1638;border-top:1px solid rgba(177,194,252,0.12);padding:1rem 1.5rem;opacity:0;transform:translateY(100%);pointer-events:none;transition:opacity 0.3s,transform 0.3s;}
+  #sticky-cta-mobile.visible{opacity:1;transform:translateY(0);pointer-events:all;}
+  #sticky-cta-mobile a{display:block;text-align:center;color:var(--white);font-family:'Jost',sans-serif;font-size:0.82rem;font-weight:500;letter-spacing:0.07em;text-transform:uppercase;text-decoration:none;padding:0.7rem 0;}
+  .works-with{background:var(--bg-section);border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);padding:2rem 5rem;}
+  .works-with-inner{display:flex;align-items:center;gap:2rem;flex-wrap:wrap;}
+  .works-with-label{font-size:0.72rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap;}
+  .works-chips{display:flex;gap:0.65rem;flex-wrap:wrap;}
+  .works-chip{font-size:0.75rem;letter-spacing:0.08em;text-transform:uppercase;font-family:'Jost',sans-serif;padding:0.3rem 0.85rem;border-radius:999px;background:rgba(164,180,240,0.22);color:var(--brand-navy);border:1px solid rgba(11,47,138,0.12);}
+  .bf-team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2rem;margin-top:2.8rem;margin-bottom:2rem;}
+  .bf-team-card{background:var(--white);border:1px solid var(--border-soft);border-radius:14px;padding:0;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 2px 12px rgba(40,52,106,0.07);transition:transform 0.22s ease,box-shadow 0.22s ease;}
+  .bf-team-card:hover{transform:translateY(-4px);box-shadow:0 8px 28px rgba(40,52,106,0.13);}
+  .bf-team-grid--four{grid-template-columns:repeat(2,1fr);}
+  .bf-team-photo-wrap{position:relative;width:100%;height:240px;background:var(--blush-deep);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .bf-team-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;display:block;}
+  .bf-team-info{padding:1.6rem 1.75rem 1.8rem;display:flex;flex-direction:column;}
+  .bf-team-name{font-family:'Playfair Display',serif;font-size:1.2rem;color:var(--charcoal);font-weight:500;margin:0 0 0.45rem;}
+  .bf-team-role{font-family:'Jost',sans-serif;font-size:0.62rem;font-weight:600;letter-spacing:0.15em;text-transform:uppercase;color:var(--brand-mid);margin:0 0 0.85rem;}
+  .bf-team-blurb{font-family:'Jost',sans-serif;font-size:0.88rem;color:var(--text-muted);margin:0;line-height:1.75;}
+  .bf-team-trust{font-size:0.83rem;color:var(--text-muted);font-style:italic;margin-top:0.5rem;}
+  .roi-section{background:var(--blush);}
+  
+  
+  
+  
+  
+  .roi-vs{margin-top:2.5rem;padding:1.5rem 2rem;background:var(--white);border-left:3px solid var(--brand-indigo);}
+  .roi-disclaimer{font-size:0.75rem;color:var(--taupe);margin-top:1.5rem;font-style:italic;}
+  .how-start{background:var(--bg-page);}
+  
+  
+  
+  
+  .pricing-anchor{text-align:center;margin-bottom:2.5rem;}
+  .pricing-anchor p{font-size:0.95rem;color:var(--taupe);margin:0;line-height:1.7;}
+  .pricing-anchor strong{color:var(--charcoal);font-weight:500;}
+  .book-divider{display:flex;align-items:center;gap:1rem;max-width:560px;margin-bottom:2rem;font-size:0.72rem;color:var(--taupe);letter-spacing:0.12em;text-transform:uppercase;}
+  .book-divider::before,.book-divider::after{content:'';flex:1;height:1px;background:var(--border-mid);}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+  .page.is-active .hero-content{animation:fadeUp 0.8s ease forwards;}
+  .page.is-active .hero-trust{animation:fadeUp 0.8s 0.15s ease both;}
+  @media(max-width:900px){
+    section{padding:4.5rem 1.5rem;}
+    .hero{padding:7rem 1.5rem 4rem;}
+    .hero-decor,.hero-decor-2,.hero-lines{display:none;}
+    h1{font-size:clamp(2.1rem,7.5vw,5rem);}
+    .credibility{padding:0;flex-direction:column;}
+    .cred-item,.cred-item--highlight{border-right:none;border-bottom:1px solid rgba(255,255,255,0.1);justify-content:flex-start;padding:1rem 1.5rem;}
+    .cred-item:last-child{border-bottom:none;}
+    .works-with{padding:1.5rem;}
+    .works-with-inner{flex-direction:column;align-items:flex-start;gap:1rem;}
+    .book-layout{grid-template-columns:1fr;gap:3rem;}
+    footer{padding:2.5rem 1.5rem;flex-direction:column;text-align:center;}
+    .footer-links{justify-content:center;}
+    .step{grid-template-columns:50px 1fr;gap:1.5rem;}
+    .form-row{grid-template-columns:1fr;}
+    
+    
+    .bf-team-grid{grid-template-columns:1fr!important;}
+  }
+  @media(max-width:480px){
+    .bf-team-grid{grid-template-columns:1fr;}
+    #sticky-cta{display:none!important;}
+    #sticky-cta-mobile{display:block;}
+    body{padding-bottom:72px;}
+  }
+
+  .mv-grid{display:flex;flex-direction:row;align-items:flex-start;gap:0;max-width:100%;margin:0 auto;}
+  .mv-block{flex:1;padding:2rem 3rem;text-align:center;}
+  .mv-divider{width:1px;background:var(--border-mid);align-self:stretch;flex-shrink:0;margin:1rem 0;}
+  .mv-label{font-family:'Jost',sans-serif;font-size:0.72rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--brand-indigo);margin-bottom:1.2rem;}
+  .mv-text{font-size:1.05rem;color:var(--text-main);line-height:1.9;max-width:480px;margin:0 auto;}
+  @media(max-width:900px){.mv-grid{flex-direction:column;gap:0;}.mv-block{padding:2rem 1rem;width:100%;}.mv-divider{width:100%;height:1px;align-self:auto;margin:0;}}
+
+  /* ── FOUNDER VIDEO ───────────────────────────────────────── */
+  .founder-video-section{padding:3.5rem 5rem 4rem;background:var(--bg-page);}
+
+  .video-founder-label{font-family:'Jost',sans-serif;font-size:0.68rem;font-weight:600;letter-spacing:0.22em;text-transform:uppercase;color:var(--brand-mid);margin-bottom:1.2rem;display:block;}
+  .founder-video-wrap{position:relative;width:100%;max-width:780px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px rgba(40,52,106,0.18);background:var(--brand-navy);}
+  .founder-video{width:100%;aspect-ratio:16/9;display:block;object-fit:cover;background:var(--brand-navy);}
+  .founder-video[hidden]{display:none;}
+  .video-pending{position:absolute;left:0;right:0;bottom:0;padding:1.6rem 2rem;text-align:left;}
+  .video-pending-name{font-family:'Playfair Display',serif;font-size:1.5rem;color:#fff;margin:0;line-height:1.2;}
+  .video-pending-note{font-family:'Jost',sans-serif;font-size:0.9rem;color:rgba(255,255,255,0.82);margin:0.2rem 0 0;line-height:1.5;}
+  .video-placeholder{position:relative;width:100%;aspect-ratio:16/9;overflow:hidden;}
+  .video-thumb-img{width:100%;height:100%;object-fit:cover;object-position:center top;display:block;transition:transform 0.4s ease;}
+  .video-overlay{position:absolute;inset:0;background:linear-gradient(135deg,rgba(28,38,90,0.72) 0%,rgba(40,52,106,0.45) 60%,rgba(28,38,90,0.65) 100%);}
+  .play-btn-wrap{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;}
+  .play-btn{width:72px;height:72px;border-radius:50%;background:rgba(255,255,255,0.95);display:flex;align-items:center;justify-content:center;transition:transform 0.25s,box-shadow 0.25s;box-shadow:0 8px 32px rgba(0,0,0,0.25);}
+  .video-placeholder:hover .play-btn{transform:scale(1.08);box-shadow:0 12px 40px rgba(0,0,0,0.35);}
+  .play-label{color:rgba(255,255,255,0.9);font-family:'Jost',sans-serif;font-size:0.78rem;letter-spacing:0.1em;text-transform:uppercase;}
+  .video-embed-container{width:100%;aspect-ratio:16/9;}
+  .video-embed-container iframe{width:100%;height:100%;border:none;display:block;}
+  .video-cta-link{font-family:'Jost',sans-serif;font-size:0.88rem;font-weight:500;color:var(--brand-indigo);letter-spacing:0.06em;text-decoration:none;border-bottom:1px solid var(--brand-lavender);padding-bottom:2px;transition:color 0.2s,border-color 0.2s;}
+  .video-cta-link:hover{color:var(--brand-mid);border-color:var(--brand-mid);}
+
+  /* ── EXPLAINER VIDEO ─────────────────────────────────────── */
+  .explainer-section{background:var(--bg-page);text-align:center;}
+  .explainer-section .section-label{justify-content:center;}
+  .explainer-section .section-sub{margin-left:auto;margin-right:auto;margin-bottom:3rem;}
+  .explainer-section h2 em{font-style:italic;color:var(--brand-indigo);}
+  .explainer-frame{max-width:980px;margin:0 auto;border-radius:16px;overflow:hidden;border:1px solid var(--border-mid);box-shadow:0 24px 60px rgba(40,52,106,0.18);background:#0c112e;aspect-ratio:16/9;}
+  .explainer-frame video{width:100%;height:100%;display:block;}
+  .explainer-ctas{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:2.5rem;}
+
+  /* ── COMPREHENSIVE MOBILE ────────────────────────────────── */
+
+
+  /* ── BEFORE VS WITH ────────────────────────────────────── */
+  .before-after-section{padding:7rem 5rem;background:var(--bg-section);}
+  .ba-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;margin-top:3rem;max-width:960px;}
+  .ba-panel{border-radius:12px;padding:2.5rem;}
+  .ba-without{background:var(--white);border:1px solid var(--border-mid);}
+  .ba-with{background:var(--brand-navy);border:1px solid var(--brand-navy);}
+  .ba-panel-title{font-family:'Jost',sans-serif;font-size:0.82rem;font-weight:600;letter-spacing:0.08em;margin-bottom:1.5rem;display:flex;align-items:center;gap:0.7rem;text-transform:uppercase;}
+  .ba-without .ba-panel-title{color:var(--text-muted);}
+  .ba-with .ba-panel-title{color:var(--brand-lavender-soft);}
+  .ba-icon{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:700;flex-shrink:0;}
+  .ba-icon-without{background:rgba(90,92,104,0.12);color:var(--text-muted);}
+  .ba-icon-with{background:rgba(177,194,252,0.18);color:var(--brand-lavender-soft);}
+  .ba-list{list-style:none;display:flex;flex-direction:column;gap:0.85rem;}
+  .ba-list li{font-size:0.93rem;line-height:1.65;}
+  .ba-without .ba-list li{color:var(--text-muted);}
+  .ba-with .ba-list li{color:rgba(255,255,255,0.82);}
+
+  /* ── ROI EQUATION ───────────────────────────────────────── */
+  .roi-equation-wrap{display:flex;align-items:center;justify-content:center;gap:1.5rem;margin:3rem 0;flex-wrap:wrap;}
+  .roi-eq-item{display:flex;flex-direction:column;align-items:center;gap:0.3rem;}
+  .roi-eq-num{font-family:'Playfair Display',serif;font-size:2.5rem;color:var(--charcoal);font-weight:400;line-height:1;}
+  .roi-eq-result{color:var(--brand-indigo)!important;}
+  .roi-eq-label{font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--taupe);font-family:'Jost',sans-serif;}
+  .roi-eq-op{font-family:'Playfair Display',serif;font-size:2rem;color:var(--brand-lavender);font-weight:400;}
+
+  /* ── LIVE IN 7 DAYS ─────────────────────────────────────── */
+  .start-steps-compact{display:flex;align-items:flex-start;gap:0;margin-top:3rem;flex-wrap:wrap;}
+  .step-compact{flex:1;min-width:130px;display:flex;flex-direction:column;gap:0.35rem;padding:0 1.5rem;}
+  .step-compact:first-child{padding-left:0;}
+  .step-compact-num{font-family:'Playfair Display',serif;font-size:2.2rem;color:var(--brand-lavender);line-height:1;font-weight:400;}
+  .step-compact-label{font-family:'Jost',sans-serif;font-weight:500;font-size:0.97rem;color:var(--charcoal);}
+  .step-compact-desc{font-size:0.83rem;color:var(--text-muted);}
+  .step-compact-arrow{font-size:1.4rem;color:var(--brand-lavender);align-self:flex-start;margin-top:0.75rem;padding:0 0.3rem;flex-shrink:0;}
+
+  /* ── COMPACT TRUST ──────────────────────────────────────── */
+  .compact-trust-section{padding:7rem 5rem;background:var(--bg-section);}
+  .trust-founder-layout{display:grid;grid-template-columns:280px 1fr;gap:5rem;align-items:center;max-width:960px;}
+  .trust-founder-content p{margin-bottom:1.2rem;}
+
+  /* ── PRICING ────────────────────────────────────────────── */
+  .pricing-section{padding:7rem 5rem;background:var(--bg-page);}
+  .pricing-display-wrap{display:flex;align-items:center;justify-content:center;gap:2rem;margin:2.5rem 0 2rem;flex-wrap:wrap;}
+  .pricing-col{display:flex;flex-direction:column;align-items:center;gap:0.4rem;}
+  .price-main{font-family:'Playfair Display',serif;font-size:3.5rem;color:var(--brand-navy);font-weight:400;line-height:1;}
+  .price-label{font-size:0.7rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--taupe);font-family:'Jost',sans-serif;}
+  .price-plus{font-family:'Playfair Display',serif;font-size:2.5rem;color:var(--brand-lavender);font-weight:400;}
+  .pricing-includes-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0.8rem 2rem;max-width:680px;margin:0 auto 1rem;text-align:left;}
+  .price-due{font-family:'Jost',sans-serif;font-size:1rem;color:var(--brand-navy);font-weight:500;margin:0 0 1rem;}
+  .pricing-inc-item{font-size:0.88rem;color:var(--text-main);font-family:'Jost',sans-serif;}
+
+  /* ── ABOUT PAGE ─────────────────────────────────────────── */
+  .about-founder-grid{display:grid;grid-template-columns:1fr 1fr;gap:5rem;align-items:center;}
+
+  /* ── MOBILE NEW SECTIONS ─────────────────────────────────── */
+  @media(max-width:768px){
+/* Global */
+    section{padding:3rem 1.2rem!important;}
+    h1{font-size:2.4rem!important;line-height:1.2!important;}
+    h2{font-size:1.9rem!important;line-height:1.2!important;}
+    h3{font-size:1.2rem!important;}
+    p{font-size:1rem!important;}
+
+    /* Hero */
+    .hero{padding:6rem 1.2rem 3rem!important;}
+    .hero-content{max-width:100%!important;}
+    .hero-sub{max-width:100%!important;font-size:1rem!important;}
+    .hero-trust{gap:1rem!important;flex-direction:column!important;align-items:flex-start!important;}
+    .trust-divider{display:none!important;}
+    .hero-ctas{flex-direction:column!important;}
+    .hero-ctas .btn-primary,.hero-ctas .btn-secondary{width:100%!important;text-align:center!important;padding:1rem!important;}
+
+    /* Credibility */
+    .credibility{padding:0!important;}
+    .cred-item,.cred-item--highlight,.cred-item--days{border-right:none!important;border-bottom:1px solid rgba(255,255,255,0.1)!important;justify-content:flex-start!important;padding:1rem 1.2rem!important;width:100%!important;}
+
+    /* Works with */
+    .works-with{padding:1.5rem 1.2rem!important;}
+    .works-with-inner{flex-direction:column!important;align-items:flex-start!important;gap:0.8rem!important;}
+
+    /* Video section */
+    .founder-video-section{padding:3rem 1.2rem!important;}
+    .play-btn{width:60px!important;height:60px!important;}
+
+    /* Leak grid */
+    .leak-grid{grid-template-columns:1fr!important;}
+    .leak-card{padding:1.8rem 1.2rem!important;}
+
+    /* Included grid */
+    .included-grid{grid-template-columns:1fr!important;}
+    .included-item{padding:1.5rem!important;}
+
+    /* Who list */
+    .who-list{max-width:100%!important;}
+    .who-item{font-size:1rem!important;padding:1rem 0!important;}
+
+    /* Measure */
+    
+
+    /* ROI */
+    
+    .roi-vs{padding:1.2rem!important;}
+
+    /* Start steps */
+    
+
+    /* Team */
+    .bf-team-grid{grid-template-columns:1fr!important;}
+    .bf-team-photo-wrap{height:260px!important;}
+
+    /* About section */
+    #page-about{padding:4rem 1.2rem!important;}
+    #page-about>div>div:last-child{grid-template-columns:1fr!important;gap:2.5rem!important;}
+    .mv-grid{flex-direction:column!important;gap:0!important;}
+    .mv-block{padding:1.8rem 0!important;width:100%!important;text-align:center!important;}
+    .mv-divider{width:100%!important;height:1px!important;align-self:auto!important;margin:0!important;}
+    .mv-text{font-size:1rem!important;max-width:100%!important;}
+
+    /* Booking CTA */
+    
+
+    /* Final CTA */
+    .final-cta{padding:5rem 1.2rem!important;}
+    .final-cta-content{max-width:100%!important;}
+
+    /* Book page */
+    .book-layout{grid-template-columns:1fr!important;gap:2rem!important;}
+    .form-row{grid-template-columns:1fr!important;}
+
+    /* FAQ */
+    .faq{max-width:100%!important;margin-top:3rem!important;}
+
+    /* Steps */
+    .steps{margin-top:2rem!important;}
+    .step{grid-template-columns:45px 1fr!important;gap:1rem!important;padding:2rem 0!important;}
+
+    /* Audit */
+    .audit-form{max-width:100%!important;}
+    .option-label{font-size:0.9rem!important;padding:0.85rem 1rem!important;}
+
+    /* Buttons */
+    .btn-primary,.btn-secondary{padding:1rem 1.5rem!important;font-size:0.82rem!important;}
+/* Founder video tighter on mobile */
+    .founder-video-section{padding:2rem 1rem 2.5rem!important;}
+
+    /* Hero trust bar - keep horizontal, wrap naturally */
+    .hero-trust{flex-direction:row!important;flex-wrap:wrap!important;gap:0.6rem 1rem!important;align-items:center!important;}
+    .trust-item{font-size:0.72rem!important;white-space:nowrap!important;}
+    .trust-divider{display:none!important;}
+
+    /* Hero proof line - full width */
+    .hero-proof-line{width:100%!important;justify-content:center!important;font-size:0.82rem!important;}
+
+    /* Works-with chips - keep horizontal wrap */
+    .works-chips{flex-direction:row!important;flex-wrap:wrap!important;}
+    .works-chip{font-size:0.7rem!important;}
+
+    /* Section labels - keep horizontal */
+    .section-label{flex-direction:row!important;}
+
+    /* Credibility bar - horizontal scroll on mobile */
+    .credibility{flex-direction:row!important;flex-wrap:nowrap!important;overflow-x:auto!important;justify-content:flex-start!important;padding:0!important;-webkit-overflow-scrolling:touch!important;}
+    .cred-item,.cred-item--highlight,.cred-item--days{border-right:1px solid rgba(255,255,255,0.1)!important;border-bottom:none!important;white-space:nowrap!important;flex-shrink:0!important;padding:1rem 1.2rem!important;}
+
+    /* Video CTA link */
+    .video-cta-link{font-size:0.85rem!important;}
+
+    /* Section sub - full width */
+    .section-sub{max-width:100%!important;margin-bottom:2rem!important;}
+
+    /* Measure note */
+    
+
+    /* Audit result */
+    .audit-result{padding:2.5rem 1rem!important;}
+
+    /* Book side contact */
+    .book-side{padding-top:0!important;}
+.before-after-section{padding:3rem 1.2rem!important;}
+    .ba-grid{grid-template-columns:1fr!important;gap:1.2rem!important;}
+    .roi-equation-wrap{gap:1rem!important;}
+    .roi-eq-num{font-size:1.9rem!important;}
+    .roi-eq-op{font-size:1.5rem!important;}
+    .start-steps-compact{flex-direction:column!important;gap:1.5rem!important;}
+    .step-compact{padding:0!important;min-width:unset!important;width:100%!important;}
+    .step-compact-arrow{transform:rotate(90deg)!important;margin-left:0.5rem!important;}
+    .compact-trust-section{padding:3rem 1.2rem!important;}
+    .trust-founder-layout{grid-template-columns:1fr!important;gap:2.5rem!important;}
+    .trust-founder-photo{max-width:280px!important;margin:0 auto!important;}
+    .pricing-section{padding:3rem 1.2rem!important;}
+    .pricing-includes-grid{grid-template-columns:1fr!important;max-width:320px!important;}
+    .price-main{font-size:2.6rem!important;}
+    .about-founder-grid{grid-template-columns:1fr!important;gap:3rem!important;}
+    #page-about>section{padding:7rem 1.5rem 4rem!important;}
+  }
+
+  /* ══ HERO FLOW CARD ══ */
+  .hero-main{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,700px) minmax(340px,410px);justify-content:space-between;align-items:center;gap:3rem;max-width:1120px;}
+  .hero-flow{background:rgba(255,255,255,0.86);backdrop-filter:blur(12px);border:1px solid var(--border-soft);border-radius:18px;padding:1.6rem 1.7rem 1.4rem;box-shadow:0 24px 60px rgba(40,52,106,0.14);}
+  .hf-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:1.1rem;}
+  .hf-title{font-family:'Playfair Display',serif;font-size:1.15rem;color:var(--charcoal);margin:0;line-height:1.3;}
+  .hf-tag{font-family:'Jost',sans-serif;font-size:0.72rem;color:var(--brand-mid);background:rgba(164,180,240,0.22);border-radius:999px;padding:0.2rem 0.7rem;}
+  .hf-steps{list-style:none;position:relative;margin:0;padding:0;}
+  .hf-steps::before{content:'';position:absolute;left:5px;top:0.5rem;bottom:0.6rem;width:1px;background:var(--brand-lavender);opacity:0.6;}
+  .hf-step{position:relative;padding:0 0 0.85rem 1.6rem;}
+  .hf-step:last-child{padding-bottom:0;}
+  .hf-step::before{content:'';position:absolute;left:0;top:calc((100% - 0.85rem) / 2 - 5.5px);width:11px;height:11px;border-radius:50%;background:var(--white);border:2px solid var(--brand-lavender);box-sizing:border-box;}
+  .hf-step--win::before{background:var(--brand-indigo);border-color:var(--brand-indigo);}
+  .hf-stage{display:block;font-family:'Jost',sans-serif;font-size:0.68rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--brand-mid);margin-bottom:0.15rem;}
+  .hf-meta{font-family:'Jost',sans-serif;font-size:0.78rem;color:var(--taupe);margin:0 0 0.35rem;line-height:1.4;}
+  .hf-bubble{font-family:'Jost',sans-serif;font-size:0.9rem;color:var(--text-main);background:var(--bg-section);border:1px solid var(--border-soft);border-radius:4px 14px 14px 14px;padding:0.55rem 0.8rem;margin:0;line-height:1.45;}
+  .hf-line{font-family:'Jost',sans-serif;font-size:0.95rem;color:var(--text-main);margin:0;line-height:1.45;}
+  .hf-line strong{color:var(--brand-navy);font-weight:500;}
+  .hf-step{display:grid;grid-template-columns:7.4rem 1.7rem 1fr;align-items:center;column-gap:0.5rem;}
+  .hf-step:last-child::before{top:calc(50% - 5.5px);}
+  .hf-act{white-space:nowrap;}
+  .hf-trig{font-family:'Jost',sans-serif;font-size:0.85rem;color:var(--taupe);line-height:1.35;}
+  .hf-act{font-family:'Jost',sans-serif;font-size:0.95rem;color:var(--text-main);line-height:1.35;}
+  .hf-step--win .hf-act{color:var(--brand-navy);font-weight:500;}
+  .hf-arrow{position:relative;height:1px;border-top:1px dashed var(--brand-lavender);}
+  .hf-arrow::after{content:'';position:absolute;right:-1px;top:-4px;width:6px;height:6px;border-top:1.5px solid var(--brand-indigo);border-right:1.5px solid var(--brand-indigo);transform:rotate(45deg);}
+  .hf-lead{margin-bottom:1rem;}
+  .hf-lead-trig{display:inline-flex;align-items:center;gap:0.5rem;font-family:'Jost',sans-serif;font-size:1.02rem;font-weight:500;color:var(--brand-navy);background:rgba(164,180,240,0.28);border:1px solid rgba(55,69,137,0.18);border-radius:999px;padding:0.4rem 0.9rem;margin:0 0 0.6rem;line-height:1.2;}
+  .hf-lead-meta{font-family:'Jost',sans-serif;font-size:0.8rem!important;color:var(--taupe);margin:0 0 0.3rem;line-height:1.3;}
+  .hf-foot{margin:1rem 0 0;padding-top:0.8rem;border-top:1px solid var(--border-soft);font-family:'Jost',sans-serif;font-size:0.85rem;color:var(--brand-mid);line-height:1.4;}
+  .hf-channels{font-family:'Jost',sans-serif;font-size:0.82rem;color:var(--text-main);margin:0;line-height:1.45;}
+  .hf-team{font-family:'Jost',sans-serif;font-size:0.78rem;color:var(--brand-mid);margin:0.2rem 0 0;line-height:1.45;}
+  @media (prefers-reduced-motion:no-preference){
+    .page.is-active .hf-step{animation:hfIn 0.5s ease both;}
+    .page.is-active .hf-step:nth-child(1){animation-delay:0.5s}.page.is-active .hf-step:nth-child(2){animation-delay:0.9s}.page.is-active .hf-step:nth-child(3){animation-delay:1.3s}
+    .page.is-active .hf-step:nth-child(4){animation-delay:1.7s}.page.is-active .hf-step:nth-child(5){animation-delay:2.1s}.page.is-active .hf-step:nth-child(6){animation-delay:2.5s}
+  }
+  @keyframes hfIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @media(max-width:1100px){.hero-main{grid-template-columns:1fr;gap:0;}.hero-flow{margin-top:2.25rem;max-width:460px;width:100%;}}
+  @media(max-width:480px){
+    .hero-flow{margin-top:1.75rem;padding:1.15rem 1.1rem 1rem;border-radius:16px;box-shadow:0 14px 36px rgba(40,52,106,0.12);}
+    .hf-head{margin-bottom:0.9rem;}
+    .hf-title{font-size:1.05rem;}
+    .hf-step{grid-template-columns:6.3rem 1.1rem 1fr;column-gap:0.4rem;padding:0 0 0.75rem 1.35rem;}
+    .hf-step::before{top:calc((100% - 0.75rem) / 2 - 5.5px);}
+    .hf-steps::before{left:5px;}
+    .hf-trig{font-size:0.78rem!important;white-space:nowrap;}
+    .hf-act{font-size:0.86rem!important;}
+    .hf-step{grid-template-columns:6.9rem 1rem 1fr!important;}
+    .hf-lead-trig{font-size:0.95rem!important;}
+    .hf-bubble{font-size:0.86rem!important;}
+    .hf-foot{font-size:0.82rem!important;line-height:1.45!important;margin-top:0.85rem;padding-top:0.7rem;}
+  }
+
+  @media(min-width:1340px){.credibility{padding:1.6rem 2rem;flex-wrap:nowrap;}.cred-item,.cred-item--highlight{padding:0.9rem 1.25rem;letter-spacing:0.03em;white-space:nowrap;}}
+  /* ══ HOW IT WORKS VISUALS ══ */
+  .hw-block{margin-top:4rem;}
+  .hw-phases{list-style:none;display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:stretch;gap:0;margin-top:2rem;padding:0;}
+  .hw-phase{display:flex;flex-direction:column;}
+  .hw-node{display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;}
+  .hw-icon{width:48px;height:48px;border-radius:50%;background:var(--brand-navy);color:var(--white);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .hw-num{font-family:'Playfair Display',serif;font-size:2rem;color:var(--brand-lavender);line-height:1;}
+  .hw-card{flex:1;background:var(--white);border:1px solid var(--border-soft);border-radius:14px;padding:1.4rem 1.4rem 1.5rem;box-shadow:0 2px 12px rgba(40,52,106,0.06);}
+  .hw-card h3{font-size:1.2rem;margin-bottom:0.4rem;}
+  .hw-card p{font-size:0.93rem;line-height:1.6;margin-bottom:1rem;}
+  .hw-chips{list-style:none;display:flex;flex-wrap:wrap;gap:0.4rem;padding:0;margin:0;}
+  .hw-chips li{font-family:'Jost',sans-serif;font-size:0.78rem;color:var(--brand-navy);background:rgba(164,180,240,0.2);border:1px solid rgba(40,52,106,0.1);border-radius:999px;padding:0.28rem 0.7rem;line-height:1.3;}
+  .hw-you{display:flex;align-items:center;justify-content:center;padding:0 0.75rem;position:relative;}
+  .hw-you span{writing-mode:vertical-rl;transform:rotate(180deg);font-family:'Jost',sans-serif;font-size:0.72rem;letter-spacing:0.06em;color:var(--brand-mid);border-left:1px dashed var(--brand-lavender);padding-left:0.5rem;white-space:nowrap;}
+  .hw-flow{display:grid;grid-template-columns:1fr auto 1.25fr auto 1fr;gap:1rem;align-items:center;margin-top:2rem;}
+  .hw-f-head{font-family:'Jost',sans-serif;font-size:0.75rem;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--brand-mid);margin:0 0 0.8rem;}
+  .hw-f-col{display:flex;flex-direction:column;gap:0.55rem;}
+  .hw-f-item{display:flex;align-items:center;gap:0.75rem;background:var(--white);border:1px solid var(--border-soft);border-radius:10px;padding:0.7rem 0.9rem;}
+  .hw-f-item>span:last-child{display:flex;flex-direction:column;font-family:'Jost',sans-serif;font-size:0.92rem;color:var(--text-main);line-height:1.35;}
+  .hw-f-item strong{font-weight:500;}
+  .hw-f-item small{font-size:0.75rem;color:var(--taupe);}
+  .hw-f-ic{color:var(--brand-indigo);display:flex;flex-shrink:0;}
+  .hw-f-arrow{font-size:1.6rem;color:var(--brand-lavender);}
+  .hw-f-engine{background:var(--brand-navy);border-radius:16px;padding:1.5rem;color:var(--white);box-shadow:0 20px 50px rgba(40,52,106,0.2);}
+  .hw-f-engine .hw-f-head{color:var(--brand-lavender-soft);}
+  .hw-stages{list-style:none;counter-reset:st;padding:0;margin:0;display:flex;flex-direction:column;gap:0.6rem;}
+  .hw-stages li{display:grid;grid-template-columns:5.5rem 1fr;gap:0.75rem;align-items:baseline;padding:0.6rem 0.8rem;background:rgba(255,255,255,0.07);border-radius:8px;}
+  .hw-stages strong{font-family:'Playfair Display',serif;font-weight:400;font-size:1.05rem;color:var(--white);}
+  .hw-stages span{font-family:'Jost',sans-serif;font-size:0.85rem;color:rgba(255,255,255,0.8);line-height:1.45;}
+  .hw-f-team{font-family:'Jost',sans-serif;font-size:0.8rem;color:var(--brand-lavender-soft);margin:0.9rem 0 0;text-align:center;}
+  .hw-note{font-size:0.78rem;color:var(--taupe);margin-top:1.25rem;max-width:760px;line-height:1.55;}
+  @media(max-width:1000px){
+    .hw-phases{grid-template-columns:1fr;gap:0.25rem;}
+    .hw-you{justify-content:flex-start;padding:0.6rem 0 0.6rem 23px;}
+    .hw-you span{writing-mode:horizontal-tb;transform:none;border-left:1px dashed var(--brand-lavender);padding:0.35rem 0 0.35rem 1.1rem;}
+    .hw-flow{grid-template-columns:1fr;gap:0.6rem;}
+    .hw-f-arrow{transform:rotate(90deg);justify-self:center;line-height:1;}
+  }
+  @media(max-width:768px){
+    .hw-block{margin-top:2.5rem;}
+    .hw-card{padding:1.15rem;}
+    .hw-icon{width:42px;height:42px;}
+    .hw-stages li{grid-template-columns:1fr;gap:0.1rem;}
+    .hw-f-head{font-size:0.72rem!important;margin-bottom:0.6rem!important;}
+    .hw-f-col:first-child{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;}
+    .hw-f-col:first-child .hw-f-head{grid-column:1/-1;}
+    .hw-f-col:first-child .hw-f-item{padding:0.6rem 0.7rem;}
+    .hw-f-item>span:last-child{font-size:0.88rem!important;}
+    .hw-stages span{font-size:0.85rem!important;}
+    .hw-f-team{font-size:0.8rem!important;}
+  }
+
+  .book-h{font-family:'Jost',sans-serif!important;font-size:0.85rem!important;line-height:1.4!important;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--charcoal);margin-bottom:1rem;}
+  .ghl-embed{background:var(--white);border:1px solid var(--border-soft);border-radius:12px;overflow:hidden;}
+  .book-alt{font-size:0.85rem;margin:0.6rem 0 0;}
+  .book-alt a,.inquiry-fallback a{color:var(--brand-indigo);}
+  .book-divider{max-width:none!important;margin:2.5rem 0 1.25rem!important;line-height:1.4;text-transform:none!important;letter-spacing:0.02em!important;font-size:0.85rem!important;}
+  .inquiry-fallback{padding:1.5rem;}
+  .inquiry-fallback p{margin:0;font-size:0.95rem;}
+
+  /* ══ HOME TEAM ROW + COMPACT ABOUT PHOTOS ══ */
+  .trust-founder-layout{grid-template-columns:1fr!important;max-width:760px!important;margin:0 auto;text-align:center;}
+  .trust-founder-content .section-label{justify-content:center;}
+  .team-row{justify-content:center;}
+  .team-row{list-style:none;display:flex;flex-wrap:wrap;gap:1.25rem 1.5rem;padding:0;margin:1.75rem 0 1.5rem;}
+  .team-row li{display:flex;flex-direction:column;align-items:center;gap:0.45rem;}
+  .tr-face{position:relative;width:72px;height:72px;border-radius:50%;overflow:hidden;background:var(--blush-deep);border:2px solid var(--white);box-shadow:0 4px 14px rgba(40,52,106,0.14);display:flex;align-items:center;justify-content:center;}
+  .tr-face::before{content:attr(data-initial);font-family:'Playfair Display',serif;font-size:1.5rem;color:var(--brand-indigo);}
+  .tr-face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top;}
+  .tr-name{font-family:'Jost',sans-serif;font-size:0.82rem;color:var(--text-main);}
+  #page-about .about-founder-grid{grid-template-columns:290px 1fr!important;gap:4rem!important;max-width:980px;margin-left:auto;margin-right:auto;}
+  #page-about .about-founder-grid>div:first-child>div:last-child{bottom:-1rem!important;right:-1rem!important;padding:0.8rem 1.2rem!important;}
+  .bf-team-grid .bf-team-card{display:grid;grid-template-columns:128px 1fr;column-gap:1.6rem;align-items:start;padding:1.5rem;}
+  .bf-team-grid .bf-team-photo-wrap{width:128px!important;height:128px!important;border-radius:50%;}
+  .bf-team-grid .bf-team-photo-wrap svg{width:34px;height:34px;}
+  .bf-team-grid .bf-team-info{padding:0!important;}
+  .bf-team-grid .bf-team-name{margin-top:0.2rem;}
+  @media(max-width:768px){
+    .team-row{gap:0.8rem 0.55rem;margin:1.25rem 0 1.1rem;flex-wrap:nowrap;}
+    .team-row li{min-width:0;flex:0 1 64px;}
+    .tr-face{width:52px;height:52px;}
+    .tr-face::before{font-size:1.2rem;}
+    .tr-name{font-size:0.78rem!important;}
+    #page-about .about-founder-grid{grid-template-columns:1fr!important;gap:2.25rem!important;}
+    #page-about .about-founder-grid>div:first-child{max-width:260px;}
+    .bf-team-grid .bf-team-card{display:block;padding:1.25rem!important;}
+    .bf-team-grid .bf-team-photo-wrap{width:88px!important;height:88px!important;margin-bottom:0.85rem;}
+    .bf-team-grid .bf-team-role{font-size:0.68rem!important;letter-spacing:0.1em!important;line-height:1.4!important;margin-bottom:0.6rem!important;}
+    .bf-team-grid .bf-team-blurb{font-size:0.92rem!important;}
+    #page-about .about-founder-grid>div:first-child{max-width:230px;}
+  }
+
+  /* ══ SPACING & RHYTHM PASS (Sep 2026) — keep this block last ══ */
+  p{line-height:1.7;}
+  section{padding:5rem 5rem;}
+  .before-after-section,.compact-trust-section,.pricing-section,.final-cta{padding:5rem 5rem;}
+  .founder-video-section{padding:3rem 5rem;}
+  .hero{min-height:88vh;padding:8rem 5rem 3.5rem;}
+  .hero-eyebrow{margin-bottom:1.25rem;}
+  .hero h1{margin-bottom:1.25rem;}
+  .hero-sub{line-height:1.6;margin-bottom:2rem;}
+  .hero-proof-line{margin-top:1.25rem;}
+  .hero-trust{margin-top:2.75rem;padding-top:1.5rem;}
+  .section-title{margin-bottom:1rem;}
+  .section-sub{margin-bottom:2.5rem;}
+  .leak-grid,.included-grid,.ba-grid,.who-list,.start-steps-compact{margin-top:2.5rem;}
+  .page>section:first-child{padding-top:8rem!important;}
+  #page-about>section{padding-top:8rem!important;padding-bottom:5rem!important;}
+  #page-about .about-founder-grid{margin-bottom:4.5rem!important;}
+  #page-about .mv-grid{margin-bottom:0;}
+  .steps{margin-top:2.5rem;}
+  .step{padding:2.25rem 0;}
+  .faq{margin-top:4.5rem;}
+  .faq h2{margin-bottom:2rem;}
+  .faq details{padding:1.2rem 0;}
+  .audit-form{margin-top:2.5rem;}
+  .audit-question{margin-bottom:2.25rem;}
+  .final-cta p{margin-bottom:2rem;}
+
+  /* Before/after: dash markers */
+  .ba-list{gap:0.7rem;}
+  .ba-list li{position:relative;padding-left:1.1rem;}
+  .ba-list li::before{content:'\2013';position:absolute;left:0;top:0;}
+  .ba-without .ba-list li::before{color:var(--taupe);}
+  .ba-with .ba-list li::before{color:var(--brand-lavender);}
+
+  /* Pricing includes: tight, even columns */
+  .pricing-section>div{max-width:880px!important;}
+  .pricing-includes-grid{grid-template-columns:repeat(3,max-content);justify-content:center;gap:0.65rem 2.75rem;max-width:none;}
+  .pricing-inc-item{white-space:nowrap;line-height:1.5;}
+
+  /* The Math estimator */
+  .roi-intro{max-width:520px;margin:0 auto 2rem;}
+  .roi-controls{display:grid;grid-template-columns:1fr 1.4fr;gap:1.5rem;max-width:560px;margin:0 auto;text-align:left;}
+  .roi-control{display:flex;flex-direction:column;gap:0.55rem;}
+  .roi-control-label{font-family:'Jost',sans-serif;font-size:0.85rem;color:var(--text-main);}
+  .roi-control-label strong{color:var(--brand-indigo);}
+  .roi-control select{font-family:'Jost',sans-serif;font-size:1rem;padding:0.7rem 0.9rem;border:1px solid var(--border-mid);border-radius:8px;background:var(--white);color:var(--charcoal);}
+  .roi-control input[type=range]{width:100%;accent-color:var(--brand-indigo);height:2.6rem;}
+  .roi-equation-wrap{margin:2.25rem 0 1rem;}
+  .roi-range-ends{display:flex;justify-content:space-between;font-family:'Jost',sans-serif;font-size:0.72rem;color:var(--taupe);margin-top:-0.4rem;}
+  .roi-eq-item{min-width:0;}
+  .roi-annual{font-size:1.05rem;color:var(--text-main);margin:0 auto;max-width:520px;}
+  .roi-annual strong{font-family:'Playfair Display',serif;font-size:1.35rem;font-weight:500;color:var(--brand-indigo);}
+  .roi-disclaimer{margin-top:1rem;}
+
+  @media(max-width:1000px){
+    .pricing-includes-grid{grid-template-columns:repeat(2,max-content);}
+  }
+  @media(max-width:768px){
+    p{line-height:1.65;}
+    section,.before-after-section,.compact-trust-section,.pricing-section,.final-cta,.founder-video-section{padding:2.75rem 1.25rem!important;}
+    .hero{min-height:auto!important;padding:6.25rem 1.25rem 2.5rem!important;}
+    .hero-slogan{margin-bottom:1rem!important;}
+    .hero-eyebrow{margin-bottom:1rem!important;}
+    .hero h1{margin-bottom:1rem!important;}
+    .hero-sub{font-size:1.02rem!important;line-height:1.6!important;margin-bottom:1.5rem!important;}
+    .hero-ctas{gap:0.75rem!important;}
+    .hero-proof-line{margin-top:1rem!important;border-radius:14px!important;}
+    .hero-trust{margin-top:1.75rem!important;padding-top:1.1rem!important;gap:0.4rem 1rem!important;}
+    .page>section:first-child,#page-about>section{padding-top:6.25rem!important;}
+    #page-about>section{padding-left:1.25rem!important;padding-right:1.25rem!important;padding-bottom:3rem!important;}
+    #page-about .about-founder-grid{margin-bottom:3.5rem!important;gap:2.5rem!important;}
+    #page-about h2.section-title[style*="margin-bottom:4rem"]{margin-bottom:1.5rem!important;}
+    #page-about div[style*="margin-bottom:6rem"]{margin-bottom:3rem!important;}
+    .section-label{margin-bottom:0.75rem!important;}
+    .section-title{margin-bottom:0.85rem!important;}
+    .section-sub{margin-bottom:1.5rem!important;}
+    .leak-grid,.included-grid,.ba-grid,.who-list,.start-steps-compact,.steps,.bf-team-grid{margin-top:1.5rem!important;}
+    .works-with{padding:1.25rem!important;}
+    .works-with-label{white-space:normal!important;line-height:1.5;}
+    /* leak cards: icon beside title */
+    .leak-card{padding:1.25rem!important;display:grid;grid-template-columns:28px 1fr;column-gap:0.85rem;align-items:start;}
+    .leak-icon{margin:0.1rem 0 0!important;grid-row:span 2;}
+    .leak-icon svg{width:24px;height:24px;}
+    .leak-card h3{margin-bottom:0.25rem!important;}
+    .leak-card p{font-size:0.95rem;}
+    /* included items: drop the diamond column */
+    .included-item{padding:1.25rem!important;}
+    .included-check{display:none!important;}
+    .included-item p{font-size:0.95rem;}
+    .ba-panel{padding:1.5rem!important;}
+    .ba-panel-title{margin-bottom:1rem!important;}
+    .who-item{padding:0.85rem 0!important;gap:1rem!important;}
+    /* home steps: number beside label, no arrows */
+    .start-steps-compact{gap:1.1rem!important;}
+    .step-compact-arrow{display:none!important;}
+    .step-compact{display:grid!important;grid-template-columns:2.6rem 1fr;column-gap:0.75rem;}
+    .step-compact-num{grid-row:span 2;font-size:1.6rem!important;line-height:1.1;}
+    .how-start .btn-secondary{margin-top:0;}
+    .how-start div[style*="margin-top:2.5rem"]{margin-top:1.75rem!important;}
+    .trust-founder-layout{gap:1.75rem!important;}
+    .trust-founder-photo{max-width:220px!important;}
+    .trust-founder-content p{margin-bottom:0.9rem;}
+    .pricing-display-wrap{margin:1.5rem 0 1.25rem!important;gap:1rem!important;}
+    .pricing-includes-grid{grid-template-columns:max-content!important;max-width:none!important;gap:0.5rem!important;}
+    .pricing-section p[style*="margin-bottom:2rem"]{margin-bottom:1.25rem!important;}
+    .roi-controls{grid-template-columns:1fr;gap:1.1rem;}
+    .roi-equation-wrap{margin:1.5rem 0 0.75rem!important;gap:0.75rem!important;}
+    .roi-eq-num{font-size:1.7rem!important;}
+    .bf-team-grid{gap:1.25rem!important;}
+    .bf-team-photo-wrap{height:220px!important;}
+    .bf-team-info{padding:1.25rem!important;}
+    .step{padding:1.5rem 0!important;}
+    .faq{margin-top:3rem!important;}
+    .faq h2{margin-bottom:1.25rem!important;}
+    .audit-form{margin-top:1.75rem!important;}
+    .audit-question{margin-bottom:1.75rem!important;}
+    footer{padding:2rem 1.25rem!important;gap:1rem!important;}
+    .video-founder-label{letter-spacing:0.14em!important;margin-bottom:1rem!important;}
+  }
+
+/* keep sticky CTA clear of GHL chat bubble */
+@media (max-width:480px){#sticky-cta-mobile{padding-right:84px;}}
+</style>
+</head>
+<body>
+
+<div id="sticky-cta">
+  <a href="#page-book">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Book a 20-Minute Demo
+  </a>
+</div>
+<div id="sticky-cta-mobile"><a href="#page-book">Book a 20-Minute Demo</a></div>
+
+<nav id="main-nav">
+  <a href="#page-home" class="logo-wrap"><img src="assets/logo.png" alt="Sirena Flow logo mark" class="logo-img"><span class="logo-text">Sirena<span>Flow</span></span></a>
+  <ul class="nav-links" id="nav-links">
+    <li><a href="#page-home">Home</a></li>
+    <li><a href="#page-how">How It Works</a></li>
+    <li><a href="#page-audit">Leak Audit</a></li>
+    <li><a href="#page-about">About</a></li>
+    <li><a href="#page-book" class="nav-cta">Book a 20-Minute Demo</a></li>
+  </ul>
+  <button type="button" class="mobile-menu-btn" id="nav-toggle" aria-expanded="false" aria-controls="nav-links" aria-label="Open menu">
+    <svg class="icon-open" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="7" x2="21" y2="7"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="17" x2="21" y2="17"/></svg>
+    <svg class="icon-close" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>
+  </button>
+</nav>
+
+<!-- HOME -->
+<div id="page-home" class="page">
+<section class="hero">
+    <div class="hero-decor"></div><div class="hero-decor-2"></div>
+    <div class="hero-lines"><svg viewBox="0 0 600 600" fill="none"><ellipse cx="300" cy="300" rx="280" ry="280" stroke="rgba(55,69,137,0.28)" stroke-width="0.8"/><ellipse cx="300" cy="300" rx="220" ry="220" stroke="rgba(55,69,137,0.20)" stroke-width="0.6"/><ellipse cx="300" cy="300" rx="160" ry="160" stroke="rgba(55,69,137,0.16)" stroke-width="0.6"/><ellipse cx="300" cy="300" rx="100" ry="100" stroke="rgba(55,69,137,0.12)" stroke-width="0.5"/><line x1="20" y1="300" x2="580" y2="300" stroke="rgba(55,69,137,0.13)" stroke-width="0.5"/><line x1="300" y1="20" x2="300" y2="580" stroke="rgba(55,69,137,0.13)" stroke-width="0.5"/><line x1="100" y1="100" x2="500" y2="500" stroke="rgba(55,69,137,0.08)" stroke-width="0.5"/><line x1="500" y1="100" x2="100" y2="500" stroke="rgba(55,69,137,0.08)" stroke-width="0.5"/></svg></div>
+    <div class="hero-main">
+    <div class="hero-content">
+      <div class="hero-slogan">No lead left behind.</div>
+      <div class="hero-eyebrow">For High-Ticket Aesthetics &amp; Wellness Practices &middot; Nationwide</div>
+      <h1>Every Inquiry.<br><em>Every Follow-Up.<br>Every Booking.</em></h1>
+      <p class="hero-sub">A fully managed inquiry-to-booking system for aesthetics &amp; wellness practices. We capture every inquiry, manage the follow-up, and keep opportunities moving toward a confirmed booking &mdash; so your team stays focused on delivering care.</p>
+      <div class="hero-ctas">
+        <a href="#page-book" class="btn-primary">Book a 20-Minute Demo</a>
+        <a href="#page-audit" class="btn-secondary">Take the Leak Audit</a>
+      </div>
+      <div class="hero-proof-line"><span class="hero-proof-icon">&#9670;</span><span>From inquiry to confirmed appointment &mdash; <strong>fully managed.</strong></span></div>
+    </div>
+    <aside class="hero-flow" aria-label="Example of one inquiry managed by Sirena Flow">
+      <div class="hf-head"><p class="hf-title">One inquiry, fully managed</p><span class="hf-tag">Example</span></div>
+      <div class="hf-lead">
+        <p class="hf-lead-trig"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/><path d="m16 2 6 6M22 2l-6 6"/></svg>Missed call &middot; after hours</p>
+        <p class="hf-lead-meta">Text-back sent</p>
+        <p class="hf-bubble">&ldquo;Sorry we missed you! Want to book a consultation, or have any questions about our services?&rdquo;</p>
+      </div>
+      <ol class="hf-steps"><li class="hf-step"><span class="hf-trig">No reply</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Followed up day 2 &amp; 5</span></li><li class="hf-step hf-step--win"><span class="hf-trig">They reply</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Consultation booked</span></li><li class="hf-step"><span class="hf-trig">Day before</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Reminder sent</span></li><li class="hf-step"><span class="hf-trig">Visit completed</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Review requested</span></li><li class="hf-step"><span class="hf-trig">Next treatment due</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Client reactivated</span></li><li class="hf-step"><span class="hf-trig">Every month</span><span class="hf-arrow" aria-hidden="true"></span><span class="hf-act">Results reported</span></li></ol>
+      <p class="hf-foot">A chatbot answers. We follow through, on every channel.</p>
+    </aside>
+    </div>
+    <div class="hero-trust">
+      <span class="trust-item">Built for $500+ average ticket practices</span><div class="trust-divider"></div>
+      <span class="trust-item">Consultation pipeline management included</span><div class="trust-divider"></div>
+      <span class="trust-item">Live in 7 days &mdash; no disruption to your team</span><div class="trust-divider"></div>
+      <span class="trust-item">After-hours response on connected channels</span>
+    </div>
+  </section>
+
+<div class="credibility">
+    <div class="cred-item"><span class="cred-icon">&#9670;</span> Full consultation pipeline management</div>
+    <div class="cred-item cred-item--highlight"><span class="cred-icon-highlight">&#9670;</span><span><strong>We manage the follow-up.</strong> Your team delivers the care.</span></div>
+    <div class="cred-item"><span class="cred-icon">&#9670;</span> Prompt response on connected channels</div>
+    <div class="cred-item cred-item--days"><span class="cred-icon">&#9670;</span><span>Live in <strong>7 days</strong> with full support</span></div>
+  </div>
+
+<!-- FOUNDER VIDEO SECTION -->
+  <section class="founder-video-section">
+    <div style="max-width:800px;margin:0 auto;text-align:center;">
+      <p class="video-founder-label">A Message From Our Founder</p>
+      <!-- FOUNDER VIDEO: upload the file to public_html/videos/founder-message.mp4 in Hostinger. It appears automatically; no code change needed. -->
+      <div class="founder-video-wrap" id="founder-video-wrap" data-video-src="videos/founder-message.mp4">
+        <video class="founder-video" id="founder-video" controls playsinline preload="metadata" data-poster="images/founder-cover.jpg" hidden></video>
+        <div class="video-placeholder" id="video-placeholder">
+          <img src="images/founder-cover.jpg" onerror="this.onerror=null;this.src='images/team-janay.jpg'" alt="Janay, Founder of Sirena Flow" class="video-thumb-img">
+          <div class="video-overlay"></div>
+          <div class="video-pending"><p class="video-pending-name">Janay</p><p class="video-pending-note">Founder message coming soon</p></div>
+        </div>
+      </div>
+      <div style="margin-top:1.5rem;">
+        <a href="#page-how" class="video-cta-link">See How Sirena Flow Works &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+<div class="works-with">
+    <div class="works-with-inner">
+      <span class="works-with-label">Works alongside your existing booking system</span>
+      <div class="works-chips">
+        <span class="works-chip">Jane</span><span class="works-chip">Mindbody</span><span class="works-chip">Nextech</span><span class="works-chip">Vagaro</span><span class="works-chip">Most practice tools</span>
+      </div>
+    </div>
+  </div>
+
+<!-- EXPLAINER VIDEO SECTION -->
+  <section class="explainer-section">
+    <div class="section-label">See How It Works</div>
+    <h2 class="section-title">Every inquiry, <em>caught.</em></h2>
+    <p class="section-sub">After hours or when your front desk is slammed &mdash; see how Sirena Flow answers, follows up, and books patients onto your calendar.</p>
+    <div class="explainer-frame">
+      <video controls playsinline preload="none" poster="videos/sirenaflow-explainer-poster.jpg">
+        <source src="videos/sirenaflow-explainer.mp4" type="video/mp4">
+      </video>
+    </div>
+    <div class="explainer-ctas">
+      <a href="#page-book" class="btn-primary">Book a Demo</a>
+      <a href="#page-audit" class="btn-secondary">Take the Leak Audit</a>
+    </div>
+  </section>
+
+<section class="leak-section">
+    <div class="section-label">The Problem</div>
+    <h2 class="section-title">Where high-ticket revenue disappears</h2>
+    <p class="section-sub">Your ads bring in the leads. Your staff delivers the care. But in between &mdash; every unanswered call, every ignored DM, every no-show with no recovery &mdash; is revenue that walks straight to a competitor.</p>
+    <div class="leak-grid">
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><path d="M6 2v4m12-4v4M2 9h20M5 19a2 2 0 01-2-2V9h18v8a2 2 0 01-2 2H5z"/></svg></div><h3>Missed Calls</h3><p>Your line rings after hours. No answer. They call the next clinic on the list.</p></div>
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg></div><h3>Unanswered DMs</h3><p>A warm lead DMs you on Instagram. Six hours pass. Interest gone.</p></div>
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg></div><h3>Dead-End Web Forms</h3><p>Form submitted at 9pm. One auto-reply. Then nothing. No follow-up, no booking.</p></div>
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg></div><h3>No-Show, No Recovery</h3><p>A no-show and nobody reschedules. That slot &mdash; and that revenue &mdash; is gone.</p></div>
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div><h3>"Still Thinking" Leads</h3><p>They said they'd think about it. No follow-up happened. They booked elsewhere.</p></div>
+      <div class="leak-card"><div class="leak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="var(--brand-indigo)" stroke-width="1.5" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><h3>No Accountability</h3><p>No tracking means no visibility &mdash; and no way to know what you're losing each month.</p></div>
+    </div>
+  </section>
+
+  <hr class="bf-wave-divider">
+
+<section class="bf-ocean-wash bf-mermaid-overlay" id="sirenaflow-solution">
+    <div class="section-label">The Solution</div>
+    <h2 class="section-title">Everything included in your flow</h2>
+    <p class="section-sub">One managed service that runs your entire consultation pipeline &mdash; from first inquiry to confirmed appointment. We configure it, test it, monitor it, and improve it every month. Your team provides the personal experience; we keep opportunities moving.</p>
+    <div class="included-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr));">
+      <div class="included-item"><span class="included-check">&#9670;</span><div><div class="included-micro">Capture</div><h4>Prompt Response Across Your Channels</h4><p>Missed calls can trigger a text-back, web forms get a prompt follow-up, and Instagram and Facebook messages are included when your accounts are connected and platform permissions allow. A chatbot on your existing website, trained on your practice-approved information, responds to visitors after hours and collects the details your team needs.</p></div></div>
+      <div class="included-item"><span class="included-check">&#9670;</span><div><div class="included-micro">Convert</div><h4>Booking Assistance &amp; Human Handoff</h4><p>We manage the journey from inquiry to consultation booked, confirmed, and followed up. Your website chatbot answers routine questions and guides visitors toward a consultation &mdash; booking directly into your calendar where a supported, tested connection allows, or through your approved booking link. Medical, treatment, billing, complaint, or uncertain questions go to your team.</p></div></div>
+      <div class="included-item"><span class="included-check">&#9670;</span><div><div class="included-micro">Retain</div><h4>Confirmations, Recovery, Reactivation &amp; Reviews</h4><p>Confirmations and reminders run on the appointment signals your booking system provides, and missed appointments flagged through that connection move into recovery follow-up. Past clients receive reactivation sequences timed around seasonal demand. Once a visit is confirmed complete through an agreed trigger, patients can receive a feedback or Google review request.</p></div></div>
+      <div class="included-item"><span class="included-check">&#9670;</span><div><div class="included-micro">Report</div><h4>Monthly KPI Reporting</h4><p>See inquiries received, response activity, bookings, recovered opportunities, and follow-up coverage &mdash; plus review requests sent and resulting review activity where that data is available. We use the numbers to keep improving your flow.</p></div></div>
+    </div>
+  </section>
+
+  <hr class="bf-wave-divider">
+
+  <section class="before-after-section">
+    <div class="section-label">The Difference</div>
+    <h2 class="section-title">Same Leads. Different Follow-Up.</h2>
+    <div class="ba-grid">
+      <div class="ba-panel ba-without">
+        <h3 class="ba-panel-title"><span class="ba-icon ba-icon-without">&#10005;</span>Without Sirena Flow</h3>
+        <ul class="ba-list">
+          <li>Missed calls wait until morning</li>
+          <li>DMs depend on staff availability</li>
+          <li>Follow-up happens inconsistently</li>
+          <li>No-shows often go unrecovered</li>
+          <li>Limited visibility into what slipped</li>
+        </ul>
+      </div>
+      <div class="ba-panel ba-with">
+        <h3 class="ba-panel-title"><span class="ba-icon ba-icon-with">&#10003;</span>With Sirena Flow</h3>
+        <ul class="ba-list">
+          <li>New inquiries keep moving</li>
+          <li>Follow-up runs across key channels</li>
+          <li>Confirmations and recovery are managed</li>
+          <li>Missed opportunities stay in follow-up</li>
+          <li>Monthly reporting shows what happened</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="who-section">
+    <div class="section-label">Fit</div>
+    <h2 class="section-title">Built for high-ticket practices</h2>
+    <div class="who-list">
+      <div class="who-item"><div class="who-dot"></div>Aesthetics &amp; wellness practices with $500+ average ticket services</div>
+      <div class="who-item"><div class="who-dot"></div>Practices generating consistent inbound leads</div>
+      <div class="who-item"><div class="who-dot"></div>Teams losing opportunities after hours or during appointments</div>
+      <div class="who-item"><div class="who-dot"></div>Owners who want a managed system &mdash; not another piece of software</div>
+    </div>
+  </section>
+
+  <section class="roi-section">
+    <div style="max-width:720px;margin:0 auto;text-align:center;">
+      <div class="section-label" style="justify-content:center;">The Math</div>
+      <h2 class="section-title">What Recovered Bookings Could Be Worth</h2>
+      <p class="roi-intro">Growth often comes from fewer inquiries slipping away, not more leads. Adjust the numbers to fit your practice.</p>
+      <div class="roi-controls">
+        <label class="roi-control"><span class="roi-control-label">Average treatment value</span>
+          <select id="roi-value">
+            <option value="300">$300</option><option value="500" selected>$500</option><option value="750">$750</option><option value="1000">$1,000</option><option value="1500">$1,500</option><option value="2500">$2,500</option><option value="5000">$5,000</option>
+          </select>
+        </label>
+        <label class="roi-control"><span class="roi-control-label">Recovered bookings per month: <strong id="roi-count-out">5</strong></span>
+          
+          <input type="range" id="roi-count" min="1" max="50" step="1" value="5" aria-describedby="roi-count-out">
+          <span class="roi-range-ends" aria-hidden="true"><span>1</span><span>50</span></span>
+        </label>
+      </div>
+      <div class="roi-equation-wrap">
+        <div class="roi-eq-item"><span class="roi-eq-num" id="roi-eq-value">$500</span><span class="roi-eq-label">average treatment</span></div>
+        <div class="roi-eq-op">&times;</div>
+        <div class="roi-eq-item"><span class="roi-eq-num" id="roi-eq-count">5</span><span class="roi-eq-label">recovered bookings</span></div>
+        <div class="roi-eq-op">=</div>
+        <div class="roi-eq-item"><span class="roi-eq-num roi-eq-result" id="roi-eq-month">$2,500</span><span class="roi-eq-label">per month</span></div>
+      </div>
+      <p class="roi-annual"><strong id="roi-eq-year">$30,000</strong> a year in bookings that might otherwise have gone to another practice.</p>
+      <p class="roi-disclaimer">Illustrative example only. Actual results vary by practice, lead quality, follow-up process, and treatment value.</p>
+    </div>
+  </section>
+
+  <section class="how-start">
+    <div style="max-width:900px;margin:0 auto;">
+      <div class="section-label">Live in 7 Days</div>
+      <h2 class="section-title">We handle the build.</h2>
+      <p class="section-sub">Your team&rsquo;s time: one kickoff call and your approval before launch.</p>
+      <div class="start-steps-compact">
+        <div class="step-compact">
+          <span class="step-compact-num">01</span>
+          <span class="step-compact-label">Map</span>
+          <span class="step-compact-desc">We audit your inquiry channels and routing</span>
+        </div>
+        <div class="step-compact-arrow">&rarr;</div>
+        <div class="step-compact">
+          <span class="step-compact-num">02</span>
+          <span class="step-compact-label">Build &amp; Test</span>
+          <span class="step-compact-desc">Every workflow is built and tested before launch</span>
+        </div>
+        <div class="step-compact-arrow">&rarr;</div>
+        <div class="step-compact">
+          <span class="step-compact-num">03</span>
+          <span class="step-compact-label">Go Live</span>
+          <span class="step-compact-desc">You approve. We go live.</span>
+        </div>
+      </div>
+      <div style="margin-top:2.5rem;">
+        <a href="#page-how" class="btn-secondary">See How It Works &rarr;</a>
+      </div>
+    </div>
+  </section>
+
+
+  <section class="pricing-section">
+    <div style="max-width:720px;margin:0 auto;text-align:center;">
+      <div class="section-label" style="justify-content:center;">Investment</div>
+      <h2 class="section-title">Simple Pricing. Fully Managed.</h2>
+      <div class="pricing-display-wrap">
+        <div class="pricing-col">
+          <span class="price-main">$297</span>
+          <span class="price-label">one-time build</span>
+        </div>
+        <div class="price-plus">+</div>
+        <div class="pricing-col">
+          <span class="price-main">$597</span>
+          <span class="price-label">per month</span>
+        </div>
+      </div>
+      <p class="price-due">$894 due at signup, including your build and first month.</p>
+      <p style="margin-bottom:2rem;">Managed inquiry-to-booking follow-up for high-ticket aesthetics and wellness practices.</p>
+      <div class="pricing-includes-grid">
+        <div class="pricing-inc-item">&#10003; Custom setup &amp; testing</div>
+        <div class="pricing-inc-item">&#10003; Inquiry response &amp; follow-up</div>
+        <div class="pricing-inc-item">&#10003; Website chatbot</div>
+        <div class="pricing-inc-item">&#10003; Booking assistance &amp; human handoff</div>
+        <div class="pricing-inc-item">&#10003; Confirmations &amp; recovery where connected</div>
+        <div class="pricing-inc-item">&#10003; Reactivation</div>
+        <div class="pricing-inc-item">&#10003; Review requests</div>
+        <div class="pricing-inc-item">&#10003; Monthly reporting</div>
+        <div class="pricing-inc-item">&#10003; Ongoing optimization</div>
+      </div>
+      <p style="font-size:0.82rem;color:var(--taupe);margin-top:1.5rem;">Cancel anytime with 30-day notice.</p>
+    </div>
+  </section>
+
+  <section class="final-cta">
+    <div class="final-cta-decor"></div>
+    <div class="final-cta-content">
+      <div class="section-label">No Obligation</div>
+      <h2>See Where Bookings May Be Slipping Through</h2>
+      <p>In a focused 20-minute demo, see where inquiries commonly fall through the cracks and how Sirena Flow keeps follow-up moving from inquiry to confirmed booking.</p>
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+        <a href="#page-book" class="btn-primary">Book a 20-Minute Demo</a>
+        <a href="#page-audit" class="btn-secondary">Take the Leak Audit First</a>
+      </div>
+    </div>
+  </section>
+
+<footer>
+    <div>
+      <div class="footer-logo">Sirena<span>Flow</span></div>
+      <div class="footer-info" style="margin-top:0.4rem;">Aesthetics &amp; Wellness &middot; Nationwide</div>
+      <div class="footer-info" style="margin-top:0.2rem;"><a href="mailto:hello@sirenaflow.com" style="color:inherit;text-decoration:none;">hello@sirenaflow.com</a> &nbsp;&middot;&nbsp; <a href="tel:+18666553976" style="color:inherit;text-decoration:none;">1-866-655-3976</a></div>
+      <div class="footer-setup">Custom build in 7 days after onboarding</div>
+    </div>
+    <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Service</a>
+      <a href="#page-book">Contact</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ABOUT -->
+<div id="page-about" class="page">
+  <section style="padding-top:10rem;padding-bottom:7rem;padding-left:5rem;padding-right:5rem;">
+    <div style="max-width:1120px;margin:0 auto;">
+
+      <div style="text-align:center;margin-bottom:6rem;">
+        <div class="section-label" style="justify-content:center;">About</div>
+        <h2 class="section-title" style="margin-bottom:4rem;">Built by Operators.<br>Managed by People.</h2>
+        <div class="mv-grid">
+          <div class="mv-block">
+            <p class="mv-label">Mission</p>
+            <p class="mv-text">To ensure no inquiry goes unanswered by giving aesthetics and wellness practices a fully managed system that turns more opportunities into confirmed bookings.</p>
+          </div>
+          <div class="mv-divider"></div>
+          <div class="mv-block">
+            <p class="mv-label">Vision</p>
+            <p class="mv-text">A world where great practices grow because of the quality of their care, not because they happened to respond first.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-founder-grid" style="margin-bottom:6rem;">
+        <div style="position:relative;">
+          <div style="background:var(--bg-section);border:1px solid var(--border-soft);border-radius:16px;overflow:hidden;aspect-ratio:3/4;">
+            <img src="images/team-janay.jpg?v=3" alt="Janay, Founder of SirenaFlow" style="width:100%;height:100%;object-fit:cover;object-position:center top;">
+          </div>
+          <div style="position:absolute;bottom:-1.5rem;right:-1.5rem;background:var(--brand-navy);color:var(--white);padding:1.2rem 1.8rem;border-radius:10px;font-family:'Jost',sans-serif;">
+            <div style="font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--brand-lavender-soft);margin-bottom:0.3rem;">Founder &amp; Growth Strategist</div>
+            <div style="font-size:1rem;font-weight:500;">Janay</div>
+          </div>
+        </div>
+        <div>
+          <h2 class="section-title" style="margin-bottom:1.5rem;">Janay &mdash; Founder &amp; Growth Strategist</h2>
+          <p style="margin-bottom:1.5rem;">Janay has helped more than 200 companies grow by turning ideas into clearer processes, stronger operations, and systems their teams can sustain. An award-winning innovator, she has built her career on rethinking how industries work. In the food industry, she challenged the way things had always been done and built a business that earned multiple awards, features in publications, and a pitch competition win. With Sirena Flow, she has brought that same innovative, strategic thinking to aesthetics and wellness, reshaping how practices turn interest into booked consultations.</p>
+          <p style="margin-bottom:1.5rem;">That experience shaped how Janay approaches growth today. She saw that generating interest is only part of the work; what happens after someone reaches out can determine whether an opportunity moves forward. She created Sirena Flow to help aesthetics and wellness practices respond consistently, guide more inquiries toward consultations, and keep relationships moving beyond the first appointment.</p>
+          <p>Janay sets the strategy behind each flow, bringing the team&rsquo;s work back to one question: What does this practice need to do next for the person who just reached out?</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-label">Team</div>
+        <h2 class="section-title">The Core Team Behind Sirena Flow</h2>
+        <p class="section-sub" style="max-width:520px;margin-bottom:2.8rem;">The people who build, test, manage, and improve your flow after you sign. Our specialists work across client accounts, and Geraldine&rsquo;s client success team is your main point of contact.</p>
+        <div class="bf-team-grid bf-team-grid--four">
+          <div class="bf-team-card"><div class="bf-team-photo-wrap"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--brand-lavender)" stroke-width="1" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><img src="images/team-geraldine.jpg" alt="Geraldine, Client Success Manager at Sirena Flow" class="bf-team-photo" onerror="this.remove()"></div><div class="bf-team-info"><h3 class="bf-team-name">Geraldine</h3><p class="bf-team-role">Client Success Manager</p><p class="bf-team-blurb">Geraldine keeps the relationship between your practice and Sirena Flow organized and responsive. She learns your priorities, coordinates updates with the people working on your account, and makes sure questions, changes, and exceptions reach the right specialist. As your practice evolves, she and her client success team keep your flow aligned with the way your team works, so you always have a responsive point of contact who knows your account and keeps the work moving.</p></div></div>
+          <div class="bf-team-card"><div class="bf-team-photo-wrap"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--brand-lavender)" stroke-width="1" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><img src="images/team-griss.jpg" alt="Griss, Technology & Automation Specialist at Sirena Flow" class="bf-team-photo" onerror="this.remove()"></div><div class="bf-team-info"><h3 class="bf-team-name">Griss</h3><p class="bf-team-role">Technology &amp; Automation Specialist</p><p class="bf-team-blurb">Griss works on the systems that connect an inquiry to its next step. She configures and maintains your approved chatbot responses, routing, follow-up sequences, and handoffs that support your booking process. She checks how workflows behave when a visitor asks an unexpected question or your staff needs to take over, so a person remains responsible for the technology after it launches.</p></div></div>
+          <div class="bf-team-card"><div class="bf-team-photo-wrap"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--brand-lavender)" stroke-width="1" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><img src="images/team-alex.jpg" alt="Alex, Operations & Performance at Sirena Flow" class="bf-team-photo" onerror="this.remove()"></div><div class="bf-team-info"><h3 class="bf-team-name">Alex</h3><p class="bf-team-role">Operations &amp; Performance</p><p class="bf-team-blurb">Alex oversees the day-to-day reliability and performance of Sirena Flow&rsquo;s client systems. He reviews whether inquiries are captured, follow-ups run, handoffs reach the right people, and reporting reflects what happened. He uses those findings to prioritize fixes and improvements with the team, so your flow keeps getting better after launch.</p></div></div>
+          <div class="bf-team-card"><div class="bf-team-photo-wrap"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--brand-lavender)" stroke-width="1" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><img src="images/team-mike.jpg" alt="Mike, Client Onboarding & Quality Specialist at Sirena Flow" class="bf-team-photo" onerror="this.remove()"></div><div class="bf-team-info"><h3 class="bf-team-name">Mike</h3><p class="bf-team-role">Client Onboarding &amp; Quality Specialist</p><p class="bf-team-blurb">Mike turns your practice&rsquo;s approved information into a tested launch. He checks your services, FAQs, booking rules, and escalation instructions with the team, then tests the inquiry journey across connected channels before your flow goes live. He documents what has been verified and flags anything that needs your approval.</p></div></div>
+        </div>
+        <p class="bf-team-trust">Every active account is managed, monitored, and optimized every month.</p>
+      </div>
+
+    </div>
+  </section>
+  <footer>
+    <div>
+      <div class="footer-logo">Sirena<span>Flow</span></div>
+      <div class="footer-info" style="margin-top:0.4rem;">Aesthetics &amp; Wellness &middot; Nationwide</div>
+      <div class="footer-setup">Custom build in 7 days after onboarding</div>
+    </div>
+    <div class="footer-links">
+      <a href="privacy-policy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Service</a>
+    </div>
+  </footer>
+</div>
+
+
+
+<!-- HOW IT WORKS -->
+<div id="page-how" class="page">
+  <section style="padding-top:10rem;">
+    <div class="section-label">Process</div>
+    <h1 class="section-title" style="max-width:860px;">From first contact to confirmed booking &mdash; in three steps</h1>
+    <p style="max-width:560px;font-size:1.1rem;">We don't hand you software and wish you luck. We map, install, and actively manage your entire inquiry-to-booking system.</p>
+    <div class="hw-block">
+      <div class="section-label">Getting Started</div>
+      <h2 class="section-title">Three phases. Minimal lift for your team.</h2>
+      <ol class="hw-phases">
+        <li class="hw-phase"><div class="hw-node"><span class="hw-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></span><span class="hw-num">01</span></div><div class="hw-card"><h3>Map</h3><p>We audit how inquiries reach your practice and where they slip.</p><ul class="hw-chips"><li>Calls, DMs, forms &amp; referrals</li><li>Hours &amp; after-hours gaps</li><li>Routing by provider &amp; service</li><li>Your approved FAQs &amp; booking rules</li></ul></div></li>
+        <li class="hw-you" aria-label="Your part"><span>Your part: one kickoff call</span></li>
+        <li class="hw-phase"><div class="hw-node"><span class="hw-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span><span class="hw-num">02</span></div><div class="hw-card"><h3>Build &amp; Test</h3><p>We build every flow and test it before anything goes live.</p><ul class="hw-chips"><li>Missed-call text-back</li><li>Website chatbot</li><li>Web form follow-up</li><li>Instagram &amp; Facebook messages*</li><li>Escalation to your staff</li><li>Confirmations &amp; no-show recovery*</li><li>Review requests*</li></ul></div></li>
+        <li class="hw-you" aria-label="Your part"><span>Your part: approve the launch</span></li>
+        <li class="hw-phase"><div class="hw-node"><span class="hw-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span><span class="hw-num">03</span></div><div class="hw-card"><h3>Manage &amp; Improve</h3><p>We monitor, report, and improve your flow every month.</p><ul class="hw-chips"><li>Monthly KPI report</li><li>1&ndash;2 optimizations a month</li><li>Ongoing monitoring</li><li>Quarterly strategy check-in</li></ul></div></li>
+      </ol>
+    </div>
+    <div class="hw-block">
+      <div class="section-label">Every Day After Launch</div>
+      <h2 class="section-title">What runs for your practice</h2>
+      <div class="hw-flow">
+        <div class="hw-f-col"><p class="hw-f-head">Inquiries come in</p><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg></span><span><strong>Missed calls</strong></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span><strong>Website chat</strong></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span><strong>Web forms</strong></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".6" fill="currentColor"/></svg></span><span><strong>Instagram &amp; Facebook</strong><small>where connected</small></span></div></div>
+        <div class="hw-f-arrow" aria-hidden="true">&rarr;</div>
+        <div class="hw-f-engine"><p class="hw-f-head">Sirena Flow manages</p>
+          <ol class="hw-stages">
+            <li><strong>Capture</strong><span>Prompt response on every connected channel</span></li>
+            <li><strong>Convert</strong><span>Follow-up until they book or opt out, with booking help</span></li>
+            <li><strong>Retain</strong><span>Reminders, no-show recovery, reactivation, reviews</span></li>
+            <li><strong>Report</strong><span>Everything tracked, reviewed, and improved monthly</span></li>
+          </ol>
+          <p class="hw-f-team">Configured, monitored &amp; improved by our team</p>
+        </div>
+        <div class="hw-f-arrow" aria-hidden="true">&rarr;</div>
+        <div class="hw-f-col"><p class="hw-f-head">Your practice gets</p><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 15l2 2 4-4"/></svg></span><span><strong>Booked consultations</strong><small>in your calendar or via your booking link</small></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg></span><span><strong>Staff handoff</strong><small>medical, billing &amp; sensitive questions</small></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/></svg></span><span><strong>Reviews &amp; repeat visits</strong></span></div><div class="hw-f-item"><span class="hw-f-ic"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V4h16v16z"/><path d="M8 16v-4M12 16V8M16 16v-6"/></svg></span><span><strong>A monthly report</strong></span></div></div>
+      </div>
+      <p class="hw-note">* Instagram and Facebook run when your accounts are connected and platform permissions allow. Confirmations, recovery, and review requests run on the booking or visit-completion signals your system provides.</p>
+    </div>
+    <div style="background:var(--bg-section);border:1px solid var(--border-soft);padding:1.5rem 2rem;max-width:600px;margin:3rem auto 0;border-radius:8px;text-align:center;"><p style="color:var(--text-muted);font-size:0.95rem;margin:0;">Before launch, we test the inquiry journey across each connected channel and confirm any open items with you.</p></div>
+    <div style="text-align:center;margin-top:3.5rem;">
+      <div class="section-label" style="justify-content:center;">Ready to Begin</div>
+      <h2 class="section-title" style="margin-bottom:1.5rem;">It starts with one short call.</h2>
+      <a href="#page-book" class="btn-primary">Book a 20-Minute Demo</a>
+    </div>
+  </section>
+  <footer><div><div class="footer-logo">Sirena<span>Flow</span></div><div class="footer-info" style="margin-top:0.4rem;">Aesthetics &amp; Wellness &middot; Nationwide</div><div class="footer-setup">Custom build in 7 days after onboarding</div></div><div class="footer-links"><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div></footer>
+</div>
+
+<!-- LEAK AUDIT -->
+<div id="page-audit" class="page">
+  <section style="padding-top:10rem;">
+    <div class="section-label">Self-Assessment</div>
+    <h1 class="section-title">The Leak Audit</h1>
+    <div class="audit-intro">
+      <p style="font-size:1.1rem;margin-bottom:1rem;">Answer 6 questions about how your practice handles inquiries. Takes 5 minutes. See exactly where scheduled appointments may be slipping &mdash; and what to do about it.</p>
+      <div class="confidential-note">Your responses are confidential and used solely to assess your booking flow. This is not medical advice. No information will be shared without your consent.</div>
+    </div>
+    <form class="audit-form" id="leak-audit-form">
+      <div class="audit-question"><div class="question-num">Question 01 of 06</div><h3>Do you ever miss calls when your team is focused on service delivery?</h3><div class="options"><label class="option-label"><input type="radio" name="q1" value="2"> Yes &mdash; regularly, especially during appointments</label><label class="option-label"><input type="radio" name="q1" value="1"> Sometimes &mdash; mostly after hours or at lunch</label><label class="option-label"><input type="radio" name="q1" value="0"> Rarely &mdash; we have full front desk coverage</label></div></div>
+      <div class="audit-question"><div class="question-num">Question 02 of 06</div><h3>How quickly do DMs get answered after hours?</h3><div class="options"><label class="option-label"><input type="radio" name="q2" value="2"> More than 12 hours &mdash; or not until the next business day</label><label class="option-label"><input type="radio" name="q2" value="1"> 3&ndash;12 hours &mdash; depends on who sees it</label><label class="option-label"><input type="radio" name="q2" value="0"> Under 3 hours &mdash; we have a system for this</label></div></div>
+      <div class="audit-question"><div class="question-num">Question 03 of 06</div><h3>What happens to web form submissions that come in after 6pm?</h3><div class="options"><label class="option-label"><input type="radio" name="q3" value="2"> They get an auto-reply, then nothing until the next morning</label><label class="option-label"><input type="radio" name="q3" value="1"> Someone usually follows up the next day &mdash; but not always</label><label class="option-label"><input type="radio" name="q3" value="0"> We have a structured follow-up sequence for after-hours submissions</label></div></div>
+      <div class="audit-question"><div class="question-num">Question 04 of 06</div><h3>Approximately what percentage of scheduled appointments no-show?</h3><div class="options"><label class="option-label"><input type="radio" name="q4" value="2"> More than 20%</label><label class="option-label"><input type="radio" name="q4" value="1"> 10&ndash;20%</label><label class="option-label"><input type="radio" name="q4" value="0"> Under 10% &mdash; our reminders are solid</label></div></div>
+      <div class="audit-question"><div class="question-num">Question 05 of 06</div><h3>Who follows up on "still thinking" leads &mdash; and how many times?</h3><div class="options"><label class="option-label"><input type="radio" name="q5" value="2"> Nobody &mdash; if they don't respond, they're gone</label><label class="option-label"><input type="radio" name="q5" value="1"> Someone follows up once, maybe twice</label><label class="option-label"><input type="radio" name="q5" value="0"> We have a defined multi-touch follow-up sequence</label></div></div>
+      <div class="audit-question"><div class="question-num">Question 06 of 06</div><h3>If someone doesn't book the same day, do they receive a follow-up sequence?</h3><div class="options"><label class="option-label"><input type="radio" name="q6" value="2"> No &mdash; same-day or nothing</label><label class="option-label"><input type="radio" name="q6" value="1"> We try, but it's inconsistent</label><label class="option-label"><input type="radio" name="q6" value="0"> Yes &mdash; we have an automated sequence in place</label></div></div>
+      <div class="closer-math"><p><strong style="color:var(--charcoal);">One thing worth considering:</strong> If every missed call, unanswered message, and &ldquo;still thinking&rdquo; lead received consistent follow-up, how many additional consultations per month do you think that could mean for your practice?</p><div class="options" style="margin-top:1rem;"><label class="option-label"><input type="radio" name="qmath" value="several"> Several &mdash; follow-up is a clear gap for us</label><label class="option-label"><input type="radio" name="qmath" value="some"> One or two &mdash; I&rsquo;d want to measure it first</label><label class="option-label"><input type="radio" name="qmath" value="few"> Few &mdash; our follow-up is already consistent</label></div></div>
+      <div style="margin-top:2.5rem;"><button type="submit" class="btn-primary">See My Leak Score &rarr;</button></div>
+    </form>
+    <div class="audit-result" id="audit-result">
+      <div class="ornament">&mdash; &#9671; &mdash;</div>
+      <div class="leak-score" id="score-label">High Leak</div>
+      <h3 id="score-headline">Significant revenue is escaping your practice every month.</h3>
+      <p id="score-body">Based on your responses, your practice has multiple active leak points. These are fixable &mdash; quickly. Book your Leak Audit and we'll review your highest-risk areas and show you how Sirena Flow would address them.</p>
+      <p style="font-size:0.9rem;color:var(--brand-indigo);font-weight:500;margin-bottom:1.5rem;max-width:440px;margin-left:auto;margin-right:auto;">Bring your score to the call &mdash; we'll review your highest-risk areas and show you how Sirena Flow would address them.</p>
+      <a href="#page-book" class="btn-primary" style="margin-top:0.5rem;display:inline-block;">Book a 20-Minute Demo</a>
+      <p style="font-size:0.77rem;margin-top:1.5rem;color:var(--taupe);">This assessment is for informational purposes only and is not a guarantee of outcome.</p>
+    </div>
+  </section>
+  <footer><div><div class="footer-logo">Sirena<span>Flow</span></div><div class="footer-info" style="margin-top:0.4rem;">Aesthetics &amp; Wellness &middot; Nationwide</div><div class="footer-setup">Custom build in 7 days after onboarding</div></div><div class="footer-links"><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div></footer>
+</div>
+
+<!-- BOOK A CALL -->
+<div id="page-book" class="page">
+  <section style="padding-top:10rem;">
+    <div class="section-label">Get Started</div>
+    <h1 class="section-title" style="max-width:640px;">A 20-minute call.<br>No pressure. Just clarity.</h1>
+    <p style="font-size:1.1rem;max-width:530px;margin-bottom:4rem;">We'll learn how your practice currently handles inquiries, show you the common places opportunities fall through the cracks, and walk you through how Sirena Flow manages the follow-up.</p>
+    <div class="book-layout">
+      <div class="book-form">
+        <h2 class="book-h">Pick a time that works</h2>
+        <!-- PATH 1: GHL booking calendar "SF-INT | CAL | Sirena Flow Demo". GHL shows its own confirmation only after the appointment is created. -->
+        <div class="ghl-embed ghl-cal">
+          <iframe src="https://api.leadconnectorhq.com/widget/booking/xjI5BWluVBQkHpaghG3Q" id="xjI5BWluVBQkHpaghG3Q_booking" title="Book a 20-minute Sirena Flow demo" scrolling="no" style="width:100%;border:none;overflow:hidden;min-height:680px;"></iframe>
+        </div>
+        <p class="book-alt">Calendar not loading? <a href="https://api.leadconnectorhq.com/widget/bookings/sf-int-sirena-flow-demo" target="_blank" rel="noopener">Open the booking page</a>.</p>
+
+        <div class="book-divider"><span>Or send an inquiry and we&rsquo;ll follow up to confirm a time</span></div>
+        <!-- PATH 2: GHL inquiry form. Paste the GHL form ID into data-ghl-form-id below; the form loads automatically.
+             GHL handles validation, consent, and the confirmation message (set it to: "We received your inquiry and will follow up to confirm a time."). -->
+        <div class="ghl-embed ghl-form" id="inquiry-embed" data-ghl-form-id="">
+          <div class="inquiry-fallback">
+            <p>Prefer to talk first? Email <a href="mailto:hello@sirenaflow.com">hello@sirenaflow.com</a> or call <a href="tel:+18666553976">1-866-655-3976</a> and we&rsquo;ll find a time together.</p>
+          </div>
+        </div>
+      </div>
+      <div class="book-side">
+        <h3>Prefer to reach out directly?</h3>
+        <div class="contact-item"><div class="contact-icon">&#9993;</div><div><h4>Email</h4><p><a href="mailto:hello@sirenaflow.com" style="color:inherit;text-decoration:none;">hello@sirenaflow.com</a></p></div></div>
+        <div class="contact-item"><div class="contact-icon">&#9742;</div><div><h4>Phone</h4><p><a href="tel:+18666553976" style="color:inherit;text-decoration:none;">1-866-655-3976</a></p></div></div>
+        <div style="margin-top:2rem;padding:2rem 2.2rem;background:var(--bg-section);border:1px solid var(--border-soft);border-radius:10px;">
+          <p style="font-size:1.05rem;font-style:italic;color:var(--charcoal);line-height:1.75;font-family:'Playfair Display',serif;margin-bottom:1.2rem;">"No more lead leakage.<br>Nothing escapes."</p>
+          <p style="font-size:0.72rem;color:var(--taupe);letter-spacing:0.14em;text-transform:uppercase;font-family:'Jost',sans-serif;font-weight:400;">&mdash; Sirena Flow</p>
+        </div>
+        <div class="contact-item"><div class="contact-icon">&#9671;</div><div><h4>Setup Timeline</h4><p>Custom build in 7 days after onboarding &mdash; full support included.</p></div></div>
+      </div>
+    </div>
+    <div class="faq">
+      <div class="section-label">Questions</div>
+      <h2>The questions you&rsquo;re probably asking.</h2>
+      <details><summary>Does this replace our front desk or coordinator?</summary><p>No. Sirena Flow operates as a layer on top of your existing team. Your staff stays focused on care and operations. We handle the response and follow-up that currently falls through the cracks &mdash; after hours, over DMs, or when your team is delivering services. Clinical judgment and escalated conversations stay with your staff.</p></details>
+      <details><summary>Do we need to switch our EMR or booking system?</summary><p>No. Sirena Flow works alongside your current booking system rather than replacing it. Where a supported, tested connection exists, we connect to it directly; otherwise we route patients through your approved booking link and hand off to your team. We confirm what&rsquo;s possible for your setup during onboarding.</p></details>
+      <details><summary>Is this just a website chat widget?</summary><p>Website chat is included, but it&rsquo;s one part of the service. Each practice gets a chatbot on its existing website, trained on your approved information, that responds after hours, answers routine questions, and guides visitors toward a consultation &mdash; with medical, billing, and uncertain questions handed to your team. Around it, Sirena Flow manages missed-call text-back, web form follow-up, Instagram and Facebook messages where connected, confirmations and no-show recovery, reactivation, review requests, and monthly reporting. We configure, test, monitor, and improve all of it.</p></details>
+      <details><summary>How long does setup take?</summary><p>Most practices are fully live within 7 days of onboarding. We handle the full build and testing. Your team's time investment is a 20-minute kickoff call and reviewing your flow before it goes live.</p></details>
+      <details><summary>What practices are the best fit?</summary><p>We're built for aesthetics and wellness brands across the US &mdash; medspas, surgical practices, cosmetic dental, and more &mdash; with active inbound volume from paid ads, social content, referrals, or organic search. If your inquiry-to-scheduled conversion rate is lower than it should be, we're likely a strong fit. The Leak Audit is a good place to start.</p></details>
+    </div>
+  </section>
+  <footer>
+    <div>
+      <div class="footer-logo">Sirena<span>Flow</span></div>
+      <div class="footer-info" style="margin-top:0.4rem;">Aesthetics &amp; Wellness &middot; Nationwide</div>
+      <div class="footer-info" style="margin-top:0.2rem;"><a href="mailto:hello@sirenaflow.com" style="color:inherit;text-decoration:none;">hello@sirenaflow.com</a> &nbsp;&middot;&nbsp; <a href="tel:+18666553976" style="color:inherit;text-decoration:none;">1-866-655-3976</a></div>
+      <div class="footer-setup">Custom build in 7 days after onboarding</div>
+    </div>
+    <div class="footer-links"><a href="privacy-policy.html">Privacy Policy</a><a href="terms.html">Terms of Service</a></div>
+  </footer>
+</div>
+
+<script>
+
+  /* Founder video: shows the video only once the file actually loads; otherwise the placeholder stays. */
+  (function(){
+    var wrap=document.getElementById('founder-video-wrap'),v=document.getElementById('founder-video'),ph=document.getElementById('video-placeholder');
+    if(!wrap||!v||!ph)return;
+    var src=wrap.getAttribute('data-video-src');
+    if(!src)return;
+    v.addEventListener('loadedmetadata',function(){v.hidden=false;ph.style.display='none';});
+    v.addEventListener('error',function(){v.hidden=true;ph.style.display='';});
+    /* Cover: use images/founder-cover.jpg if uploaded; otherwise show a frame from the video itself (1.5s in). */
+    var pt=new Image();
+    pt.onload=function(){v.setAttribute('poster',pt.src);v.src=src;};
+    pt.onerror=function(){v.removeAttribute('poster');v.src=src+'#t=1.5';};
+    pt.src=v.getAttribute('data-poster');
+  })();
+
+(function(){
+if(!window.location.hash){window.location.hash='#page-home';}
+function showPage(hash){
+document.querySelectorAll('.page').forEach(function(p){p.style.display='none';p.classList.remove('is-active');});
+var id=hash?hash.replace('#',''):'page-home';
+var t=document.getElementById(id);
+if(!t||!t.classList.contains('page'))t=document.getElementById('page-home');
+t.style.display='block';t.classList.add('is-active');
+window.scrollTo({top:0,behavior:'smooth'});
+}
+showPage(window.location.hash);
+window.addEventListener('hashchange',function(){showPage(window.location.hash);});
+document.addEventListener('click',function(e){
+var trigger=e.target.closest('[data-open-modal]');
+if(trigger){e.preventDefault();var m=document.getElementById(trigger.getAttribute('data-open-modal'));if(m)m.classList.add('show');}
+var cb=e.target.closest('[data-close-modal]');
+if(cb){var o=cb.closest('.modal-overlay');if(o)o.classList.remove('show');return;}
+if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('show');
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')document.querySelectorAll('.modal-overlay.show').forEach(function(m){m.classList.remove('show');});});
+document.addEventListener('change',function(e){
+if(e.target.type==='radio'){
+document.querySelectorAll('input[name="'+e.target.name+'"]').forEach(function(i){var l=i.closest('.option-label');if(l)l.classList.remove('selected');});
+var s=e.target.closest('.option-label');if(s)s.classList.add('selected');
+}
+});
+var af=document.getElementById('leak-audit-form');
+if(af){af.addEventListener('submit',function(e){
+e.preventDefault();
+var total=0,answered=0;
+['q1','q2','q3','q4','q5','q6'].forEach(function(q){var s=af.querySelector('input[name="'+q+'"]:checked');if(s){total+=parseInt(s.value,10);answered++;}});
+if(answered<6){alert('Please answer all 6 questions to see your Leak Score.');return;}
+var r=document.getElementById('audit-result'),sl=document.getElementById('score-label'),hl=document.getElementById('score-headline'),bd=document.getElementById('score-body');
+if(r){r.classList.add('show');r.scrollIntoView({behavior:'smooth',block:'center'});}
+if(sl)sl.className='leak-score';
+if(total<=3){if(sl){sl.classList.add('low');sl.textContent='Low Leak';}if(hl)hl.textContent='Your booking flow is relatively well-managed.';if(bd)bd.textContent="You've built solid coverage across most channels. A quick call can confirm whether there's meaningful upside in adding a managed follow-up layer.";}
+else if(total<=7){if(sl){sl.classList.add('moderate');sl.textContent='Moderate Leak';}if(hl)hl.textContent="You're losing a meaningful number of bookings each month.";if(bd)bd.textContent="There are clear gaps in your after-hours and follow-up coverage. A structured managed follow-up layer may help reduce opportunities slipping through the cracks.";}
+else{if(sl){sl.classList.add('high');sl.textContent='High Leak';}if(hl)hl.textContent='Confirmed bookings are escaping your calendar every month.';if(bd)bd.textContent="Multiple active leak points appear in your booking flow. Book a 20-minute demo and we'll review the highest-risk areas and show you how Sirena Flow would address them.";}
+});}
+var rv=document.getElementById('roi-value'),rc=document.getElementById('roi-count');
+function money(n){return '$'+n.toLocaleString('en-US');}
+function updROI(){if(!rv||!rc)return;var v=parseInt(rv.value,10),c=parseInt(rc.value,10);
+document.getElementById('roi-count-out').textContent=c;document.getElementById('roi-eq-value').textContent=money(v);document.getElementById('roi-eq-count').textContent=c;
+document.getElementById('roi-eq-month').textContent=money(v*c);document.getElementById('roi-eq-year').textContent=money(v*c*12);}
+if(rv)rv.addEventListener('change',updROI);if(rc)rc.addEventListener('input',updROI);updROI();
+/* GHL inquiry form: loads only when a form ID is set; submission + confirmation handled by GHL */
+var ie=document.getElementById('inquiry-embed');
+if(ie){var fid=(ie.getAttribute('data-ghl-form-id')||'').trim();
+if(fid){var f=document.createElement('iframe');f.src='https://api.leadconnectorhq.com/widget/form/'+fid;f.id='inline-'+fid;f.title='Sirena Flow demo inquiry form';
+f.setAttribute('data-layout',"{'id':'INLINE'}");f.setAttribute('data-trigger-type','alwaysShow');f.setAttribute('data-form-id',fid);f.setAttribute('data-layout-iframe-id','inline-'+fid);
+f.style.cssText='width:100%;border:none;min-height:760px;';ie.innerHTML='';ie.appendChild(f);}}
+var sd=document.getElementById('sticky-cta'),sm=document.getElementById('sticky-cta-mobile');
+function curPage(){var h=window.location.hash||'#page-home';return document.querySelector(h+'.page')?h.replace('#',''):'page-home';}
+function updateCTA(){var show=curPage()!=='page-book'&&window.scrollY>420;if(sd)sd.classList.toggle('visible',show);if(sm)sm.classList.toggle('visible',show);}
+window.addEventListener('scroll',updateCTA,{passive:true});window.addEventListener('hashchange',updateCTA);updateCTA();
+var nav=document.getElementById('main-nav'),nt=document.getElementById('nav-toggle'),nl=document.getElementById('nav-links');
+function setNav(open,returnFocus){if(!nav||!nt)return;nav.classList.toggle('is-open',open);nt.setAttribute('aria-expanded',open?'true':'false');nt.setAttribute('aria-label',open?'Close menu':'Open menu');if(!open&&returnFocus)nt.focus();}
+function closeNav(){setNav(false);}
+if(nt)nt.addEventListener('click',function(){setNav(!nav.classList.contains('is-open'));});
+if(nl)nl.addEventListener('click',function(e){if(e.target.closest('a'))closeNav();});
+window.addEventListener('hashchange',closeNav);
+window.addEventListener('resize',function(){if(window.innerWidth>1000)closeNav();});
+document.addEventListener('click',function(e){if(nav&&nav.classList.contains('is-open')&&!e.target.closest('#main-nav'))closeNav();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&nav&&nav.classList.contains('is-open'))setNav(false,true);});
+}());
+</script>
+<script src="https://link.msgsndr.com/js/form_embed.js" defer></script>
+<script src="https://widgets.leadconnectorhq.com/loader.js" data-resources-url="https://widgets.leadconnectorhq.com/chat-widget/loader.js" data-widget-id="6ac1820082099df3eebfeae6" data-source="WEB_USER"></script>
+</body>
+</html>
