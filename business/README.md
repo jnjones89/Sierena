@@ -52,13 +52,14 @@ Reload the extension in `chrome://extensions`.
 When everything works, swap `sk_test_` / `whsec_` / `price_` values for your **live** ones (the live webhook has its own signing secret).
 
 ## Tiers
-| | Free | Lite (work email) | Business (paid key) |
-|---|---|---|---|
-| Live dashboard | ✅ | ✅ | ✅ |
-| JSON export + AI prompt | — | ✅ | ✅ |
-| Sync to company portal | — | — | ✅ |
-| Webhook (Make / n8n) | — | — | ✅ |
-| Business profile, social media, team AI Agent Gap Map | — | — | ✅ |
+| | Lite (free) | Business (paid key) |
+|---|---|---|
+| Tracking | One audit, stops at 5 tracked hours (or after 24h with 2+ hours) | No limit, start new audits any time |
+| Results: repeated task, AI agent, step-by-step fix | ✅ after entering a work email | ✅ live, any time |
+| Download data + full AI report prompt | ✅ | ✅ |
+| Sync to company portal | — | ✅ |
+| Webhook (Make / n8n) | — | ✅ |
+| Business profile, social media, team AI Agent Gap Map | — | ✅ |
 
 ## Files
 - `index.php` pricing/upgrade page · `checkout.php` · `success.php` · `webhook.php` · `billing.php`

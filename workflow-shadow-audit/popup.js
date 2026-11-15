@@ -1,14 +1,13 @@
 /*
  * Workflow Shadow Audit — popup controller
  *
- * Responsibilities:
- *   - Shadowing toggle + role tag
- *   - Access gate (Client Access Key "AUDIT-..." or work email)
- *   - Live mini-dashboard (refreshes every few seconds)
- *   - JSON export, AI analysis prompt copy, webhook POST, session reset
+ * Screens:
+ *   Free:      Start → Tracking (progress to 5 hours) → Results ready (email) → Results
+ *   Business:  Tracking (no limit) + live Results + portal sync, webhook, new audit
  *
  * Storage key owned by the popup:
- *   profile : { roleTag, access: { mode, value, unlockedAt } | null, webhookUrl }
+ *   profile : { roleTag, access: { mode, tier, value, ... } | null, webhookUrl }
+ * Storage keys owned by background.js: settings, metrics, runtime, trial
  */
 
 'use strict';
@@ -19,10 +18,11 @@ const REVALIDATE_MS = 12 * 60 * 60 * 1000;        // re-check a Business key twi
 const OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;  // keep working offline for up to 7 days
 
 const REFRESH_MS = 5000;
-const MIN_LOOP_REPEATS = 2;      // a loop must occur at least twice to count as "repeated"
+const MIN_LOOP_REPEATS = 2;
 const MAX_EXPORT_LOOPS = 25;
 const RESET_CONFIRM_MS = 4000;
 const LOOP_SEPARATOR = ' -> ';
+const DEFAULT_LITE_TARGET = 5 * 60 * 60;
 
 const FREE_EMAIL_DOMAINS = new Set([
   'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.uk', 'ymail.com',
@@ -36,41 +36,60 @@ const $ = (id) => document.getElementById(id);
 
 const el = {
   statusPill: $('statusPill'),
+  viewStart: $('viewStart'),
+  viewTracking: $('viewTracking'),
+  viewReady: $('viewReady'),
+  viewResults: $('viewResults'),
+  startBtn: $('startBtn'),
   enabledToggle: $('enabledToggle'),
-  toggleSub: $('toggleSub'),
-  roleInput: $('roleInput'),
-  gateLocked: $('gateLocked'),
-  gateUnlocked: $('gateUnlocked'),
-  gateInput: $('gateInput'),
-  gateBtn: $('gateBtn'),
-  gateMsg: $('gateMsg'),
-  unlockedText: $('unlockedText'),
-  lockBtn: $('lockBtn'),
+  trackTitle: $('trackTitle'),
+  trackSub: $('trackSub'),
+  progressBox: $('progressBox'),
+  progressText: $('progressText'),
+  progressLeft: $('progressLeft'),
+  progressBar: $('progressBar'),
   statHours: $('statHours'),
   statTools: $('statTools'),
   statLoop: $('statLoop'),
   statSwitches: $('statSwitches'),
-  topTools: $('topTools'),
-  updatedAt: $('updatedAt'),
-  lockNote: $('lockNote'),
-  downloadBtn: $('downloadBtn'),
+  roleRowTracking: $('roleRowTracking'),
+  roleInputs: Array.from(document.querySelectorAll('.role-input')),
+  emailInput: $('emailInput'),
+  emailBtn: $('emailBtn'),
+  emailMsg: $('emailMsg'),
+  resultsTitle: $('resultsTitle'),
+  resultsBody: $('resultsBody'),
   copyPromptBtn: $('copyPromptBtn'),
+  downloadBtn: $('downloadBtn'),
+  liteDoneBox: $('liteDoneBox'),
+  businessBox: $('businessBox'),
   syncBtn: $('syncBtn'),
   portalBtn: $('portalBtn'),
-  upgradeBtn: $('upgradeBtn'),
-  webhookDetails: $('webhookDetails'),
   webhookInput: $('webhookInput'),
   webhookBtn: $('webhookBtn'),
   resetBtn: $('resetBtn'),
-  toast: $('toast')
+  upgradeRunning: $('upgradeRunning'),
+  upgradeBtns: Array.from(document.querySelectorAll('.upgrade-btn')),
+  toast: $('toast'),
+  keyLinkRow: $('keyLinkRow'),
+  keyLink: $('keyLink'),
+  keyBox: $('keyBox'),
+  keyInput: $('keyInput'),
+  keyBtn: $('keyBtn'),
+  keyMsg: $('keyMsg'),
+  bizRow: $('bizRow'),
+  bizText: $('bizText'),
+  bizChange: $('bizChange')
 };
 
 let profile = { roleTag: '', access: null, webhookUrl: '' };
 let latestMetrics = null;
+let status = { enabled: false, tracking: false, idleState: 'active', trial: {}, liteTargetSeconds: DEFAULT_LITE_TARGET };
 let refreshTimer = null;
 let resetConfirmTimer = null;
 let toastTimer = null;
 let roleSaveTimer = null;
+let lastResultsKey = '';
 
 /* ------------------------------------------------------------------ */
 /* Utilities                                                           */
@@ -102,24 +121,21 @@ function showToast(text, kind) {
   }, 4500);
 }
 
+function setMsg(node, text, kind) {
+  node.textContent = text;
+  node.className = 'msg' + (kind ? ' ' + kind : '');
+}
+
 function round1(n) {
   return Math.round(n * 10) / 10;
 }
 
-function formatMinutes(seconds) {
-  const mins = seconds / 60;
-  if (mins < 1) return Math.round(seconds) + 's';
-  if (mins < 60) return Math.round(mins) + 'm';
-  const h = Math.floor(mins / 60);
-  const m = Math.round(mins % 60);
-  return h + 'h ' + m + 'm';
+function hours(seconds) {
+  return (seconds / 3600).toFixed(1);
 }
 
 function slugify(text) {
-  const slug = String(text || '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+  const slug = String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   return slug || 'general';
 }
 
@@ -130,22 +146,8 @@ function localDateStamp(date) {
   return `${y}-${m}-${d}`;
 }
 
-function currentTier() {
-  const a = profile.access;
-  if (!a || !a.mode || !a.value) return 'free';
-  if (a.mode === 'key' && a.tier === 'business') return 'business';
-  if (a.mode === 'email') return 'lite';
-  return 'free';
-}
-
-/** Lite (work email) or Business (paid key): export + AI prompt. */
-function isUnlocked() {
-  return currentTier() !== 'free';
-}
-
-/** Business only: portal sync, webhook. */
-function isBusiness() {
-  return currentTier() === 'business';
+function openTab(url) {
+  chrome.tabs.create({ url });
 }
 
 async function postJson(path, body) {
@@ -164,12 +166,28 @@ async function postJson(path, body) {
   return data;
 }
 
-function openTab(url) {
-  chrome.tabs.create({ url });
+/* ------------------------------------------------------------------ */
+/* Tiers                                                               */
+/* ------------------------------------------------------------------ */
+
+function currentTier() {
+  const a = profile.access;
+  if (!a || !a.mode || !a.value) return 'free';
+  if (a.mode === 'key' && a.tier === 'business') return 'business';
+  if (a.mode === 'email') return 'lite';
+  return 'free';
+}
+
+function isBusiness() {
+  return currentTier() === 'business';
+}
+
+function hasEmail() {
+  return currentTier() === 'lite';
 }
 
 /* ------------------------------------------------------------------ */
-/* Profile persistence                                                 */
+/* Profile                                                             */
 /* ------------------------------------------------------------------ */
 
 async function loadProfile() {
@@ -181,87 +199,102 @@ async function saveProfile() {
   await chrome.storage.local.set({ profile });
 }
 
-/* ------------------------------------------------------------------ */
-/* Access gate                                                         */
-/* ------------------------------------------------------------------ */
-
-function validateAccessKey(value) {
-  return /^AUDIT-[A-Z0-9][A-Z0-9-]{3,}$/i.test(value);
+function handleRoleInput(e) {
+  const value = e.target.value;
+  el.roleInputs.forEach((input) => {
+    if (input !== e.target) input.value = value;
+  });
+  clearTimeout(roleSaveTimer);
+  roleSaveTimer = setTimeout(async () => {
+    profile.roleTag = value.trim().slice(0, 40);
+    await saveProfile();
+    roleSaveTimer = null;
+  }, 300);
 }
+
+/* ------------------------------------------------------------------ */
+/* Email (free results) and Business key                               */
+/* ------------------------------------------------------------------ */
 
 function validateWorkEmail(value) {
   const match = /^[^\s@]+@([^\s@]+\.[^\s@]{2,})$/.exec(value);
-  if (!match) return { ok: false, reason: 'Enter a valid email address.' };
-  const domain = match[1].toLowerCase();
-  if (FREE_EMAIL_DOMAINS.has(domain)) {
-    return { ok: false, reason: 'Please use your work email (not a personal inbox).' };
+  if (!match) return { ok: false, reason: 'Please enter a valid email.' };
+  if (FREE_EMAIL_DOMAINS.has(match[1].toLowerCase())) {
+    return { ok: false, reason: 'Please use your work email.' };
   }
   return { ok: true };
 }
 
-async function handleUnlock() {
-  const raw = el.gateInput.value.trim();
-  if (!raw) {
-    setGateMsg('Enter a Client Access Key or your work email.', 'error');
+async function handleEmail() {
+  const raw = el.emailInput.value.trim();
+  const check = validateWorkEmail(raw);
+  if (!check.ok) {
+    setMsg(el.emailMsg, check.reason, 'error');
     return;
   }
-
-  if (/^audit-/i.test(raw)) {
-    if (!validateAccessKey(raw)) {
-      setGateMsg('That access key looks incomplete. Format: AUDIT-XXXX-XXXX-XXXX-XXXX', 'error');
-      return;
-    }
-    const key = raw.toUpperCase();
-    el.gateBtn.disabled = true;
-    setGateMsg('Checking your Business key…', '');
-    let result;
-    try {
-      result = await postJson('/api/validate.php', { key });
-    } catch (e) {
-      el.gateBtn.disabled = false;
-      setGateMsg('Could not reach the license server. Check your connection and try again.', 'error');
-      return;
-    }
-    el.gateBtn.disabled = false;
-    if (!result.ok || !result.valid) {
-      setGateMsg(result.reason || result.error || 'That key is not valid.', 'error');
-      return;
-    }
-    const now = new Date().toISOString();
-    profile.access = {
-      mode: 'key',
-      tier: 'business',
-      value: key,
-      company: result.company || '',
-      portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
-      unlockedAt: now,
-      validatedAt: now
-    };
-  } else {
-    const check = validateWorkEmail(raw);
-    if (!check.ok) {
-      setGateMsg(check.reason, 'error');
-      return;
-    }
-    const email = raw.toLowerCase();
-    profile.access = { mode: 'email', tier: 'lite', value: email, unlockedAt: new Date().toISOString() };
-    // Record the lead (fire-and-forget; unlocking never depends on the server).
-    postJson('/api/lead.php', { email, roleTag: profile.roleTag || '' }).catch(() => {});
-  }
-
+  const email = raw.toLowerCase();
+  profile.access = { mode: 'email', tier: 'lite', value: email, unlockedAt: new Date().toISOString() };
   await saveProfile();
-  el.gateInput.value = '';
-  renderGate();
-  showToast(isBusiness() ? 'Business plan unlocked.' : 'Export + AI prompt unlocked.', 'ok');
+  postJson('/api/lead.php', { email, roleTag: profile.roleTag || '' }).catch(() => {});
+  render();
 }
 
-/** Re-check a Business key periodically so canceled subscriptions lose access. */
-async function revalidateBusinessKey() {
+function validateKeyFormat(value) {
+  return /^AUDIT-[A-Z0-9][A-Z0-9-]{3,}$/i.test(value);
+}
+
+async function handleKey() {
+  const key = el.keyInput.value.trim().toUpperCase();
+  if (!validateKeyFormat(key)) {
+    setMsg(el.keyMsg, 'Keys look like AUDIT-XXXX-XXXX-XXXX-XXXX', 'error');
+    return;
+  }
+  el.keyBtn.disabled = true;
+  setMsg(el.keyMsg, 'Checking…', '');
+  let result;
+  try {
+    result = await postJson('/api/validate.php', { key });
+  } catch (e) {
+    el.keyBtn.disabled = false;
+    setMsg(el.keyMsg, "Couldn't connect. Check your internet and try again.", 'error');
+    return;
+  }
+  el.keyBtn.disabled = false;
+  if (!result.ok || !result.valid) {
+    setMsg(el.keyMsg, result.reason || result.error || "That key didn't work.", 'error');
+    return;
+  }
+  const now = new Date().toISOString();
+  profile.access = {
+    mode: 'key',
+    tier: 'business',
+    value: key,
+    company: result.company || '',
+    portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
+    unlockedAt: now,
+    validatedAt: now
+  };
+  await saveProfile();
+  el.keyInput.value = '';
+  setMsg(el.keyMsg, '', '');
+  el.keyBox.classList.add('hidden');
+  showToast('Business unlocked. No time limit.', 'ok');
+  await refresh();
+}
+
+async function handleChangeKey() {
+  profile.access = null;
+  await saveProfile();
+  el.keyBox.classList.remove('hidden');
+  await refresh();
+}
+
+/** Re-check a Business key so canceled subscriptions lose access. */
+async function revalidateBusinessKey(force) {
   const a = profile.access;
   if (!a || a.mode !== 'key') return;
-
   const last = a.validatedAt ? Date.parse(a.validatedAt) : 0;
-  if (a.tier === 'business' && Date.now() - last < REVALIDATE_MS) return;
+  if (!force && a.tier === 'business' && Date.now() - last < REVALIDATE_MS) return;
 
   try {
     const result = await postJson('/api/validate.php', { key: a.value });
@@ -274,70 +307,20 @@ async function revalidateBusinessKey() {
       });
     } else if (result.ok && !result.valid) {
       profile.access = null;
-      setGateMsg(result.reason || 'Your Business key is no longer active.', 'error');
+      showToast(result.reason || 'Your Business key is no longer active.', 'error');
     }
   } catch (e) {
-    // Offline: allow a grace period, then require a fresh check.
     if (Date.now() - last > OFFLINE_GRACE_MS) {
       profile.access = null;
-      setGateMsg('Please reconnect to the internet to re-verify your Business key.', 'error');
+      showToast('Connect to the internet to re-check your Business key.', 'error');
     }
   }
   await saveProfile();
-  renderGate();
-}
-
-async function handleLock() {
-  profile.access = null;
-  await saveProfile();
-  renderGate();
-  setGateMsg('Live preview is free. Work email unlocks export + AI prompt. Business key unlocks team sync & webhook.', '');
-}
-
-function setGateMsg(text, kind) {
-  el.gateMsg.textContent = text;
-  el.gateMsg.className = 'gate-msg' + (kind ? ' ' + kind : '');
-}
-
-function maskAccess(access) {
-  if (!access) return '';
-  if (access.mode === 'key') {
-    const v = access.value;
-    return v.length > 10 ? v.slice(0, 8) + '…' + v.slice(-2) : v;
-  }
-  return access.value;
-}
-
-function renderGate() {
-  const unlocked = isUnlocked();
-  const business = isBusiness();
-  el.gateLocked.classList.toggle('hidden', unlocked);
-  el.gateUnlocked.classList.toggle('hidden', !unlocked);
-  if (business) {
-    el.unlockedText.textContent =
-      'Business' + (profile.access.company ? ' · ' + profile.access.company : '') + ' · ' + maskAccess(profile.access);
-  } else if (unlocked) {
-    el.unlockedText.textContent = 'Lite · ' + maskAccess(profile.access);
-  }
-
-  el.lockNote.classList.toggle('hidden', unlocked);
-  el.downloadBtn.disabled = !unlocked;
-  el.copyPromptBtn.disabled = !unlocked;
-
-  el.syncBtn.disabled = !business;
-  el.syncBtn.classList.toggle('hidden', !business);
-  el.portalBtn.classList.toggle('hidden', !business);
-  el.upgradeBtn.classList.toggle('hidden', business);
-
-  el.webhookBtn.disabled = !business;
-  el.webhookInput.disabled = !business;
-  el.webhookDetails.classList.toggle('disabled', !business);
-  el.webhookDetails.querySelector('summary').textContent = business ? 'Send to Webhook' : 'Send to Webhook (Business)';
-  if (!business) el.webhookDetails.open = false;
+  await refresh();
 }
 
 /* ------------------------------------------------------------------ */
-/* Payload construction (matches the documented JSON schema)           */
+/* Data export (matches the documented JSON schema)                    */
 /* ------------------------------------------------------------------ */
 
 function computeSummary(metrics) {
@@ -348,7 +331,6 @@ function computeSummary(metrics) {
     visitCount: domains[domain].visitCount || 0
   }));
   entries.sort((a, b) => b.activeSeconds - a.activeSeconds || b.visitCount - a.visitCount);
-
   const totalSeconds = entries.reduce((sum, e) => sum + e.activeSeconds, 0);
 
   const loopsObj = (metrics && metrics.loops) || {};
@@ -388,78 +370,43 @@ function buildPayload() {
   };
 }
 
-/* ------------------------------------------------------------------ */
-/* AI analysis prompt                                                  */
-/* ------------------------------------------------------------------ */
-
 function buildAnalysisPrompt(payload) {
-  const summary = computeSummary(latestMetrics);
-  const started = summary.sessionStartedAt ? new Date(summary.sessionStartedAt) : null;
-  const ended = new Date(payload.auditMetadata.exportDate);
-  const windowText = started
-    ? `${started.toISOString()} → ${ended.toISOString()} (${round1((ended - started) / 36e5)} wall-clock hours)`
-    : `ending ${ended.toISOString()}`;
+  const insight = buildInsights(latestMetrics);
+  const quick = insight
+    ? [
+        `- Biggest bottleneck area: ${insight.main.area}`,
+        `- Most repeated task: ${insight.loop ? insight.loop.names.join(' → ') + ` (${insight.loop.count} times)` : 'no clear repeat yet'}`,
+        `- Suggested agent: ${insight.main.agent} — ${insight.main.does}`
+      ].join('\n')
+    : '- Not enough data yet';
 
   return [
-    'You are a senior Operational AI Architect and SaaS cost analyst preparing a client-facing report.',
+    'You are an AI operations consultant. Write a short, simple report for a busy business owner.',
+    'Use plain words. No jargon. Short sentences. Numbers first.',
     '',
-    '## Context',
-    'The JSON below was captured by "Workflow Shadow Audit", a read-only browser extension that passively',
-    'recorded ONLY domain names, active (non-idle) foreground time, visit counts, repeated 4-step domain',
-    'loops, and rapid context switches (tab/domain switches within 30 seconds of the previous one).',
-    'No page content, URL paths, keystrokes or personal data were collected.',
+    'The data below comes from a private, read-only browser tracker. It only saw website names, time spent,',
+    'how often the person came back to each site, 4-site patterns they repeated, and quick tab jumps',
+    '(less than 30 seconds apart). It never saw page content or anything typed.',
     '',
-    `- Role / department audited: ${payload.auditMetadata.roleTag}`,
-    `- Observation window: ${windowText}`,
-    `- Total active minutes: ${payload.auditMetadata.totalActiveMinutes}`,
-    `- Unique domains: ${payload.auditMetadata.uniqueToolsCount}`,
-    `- Rapid context switches: ${payload.auditMetadata.rapidContextSwitches}`,
+    `Role: ${payload.auditMetadata.roleTag}`,
+    `Time tracked: ${round1(payload.auditMetadata.totalActiveMinutes / 60)} hours`,
     '',
-    '## Rules',
-    '1. Use ONLY the data provided. Never invent tools, seat counts or prices that are not stated; when you',
-    '   need a number the data does not contain, state it as a labeled assumption and show the formula.',
-    '2. First classify every domain as: Core SaaS, Internal/Company, Communication, Search/Reference,',
-    '   AI Tool, or Personal/Non-work. Exclude Personal/Non-work from cost math but mention its share of time.',
-    '3. Default assumptions (override if the client provides real figures): fully loaded labor cost $45/hour,',
-    '   21.7 working days/month, 1–3 minutes of lost focus per rapid context switch (give low and high cases).',
-    '4. Extrapolate from the observation window to a monthly and annual figure per employee, and clearly',
-    '   label every extrapolation.',
-    '5. Write for an executive: plain language, numbers first, no hype.',
+    'Quick findings from the tool:',
+    quick,
     '',
-    '## Deliver the report with exactly these sections',
+    'Write these sections:',
+    '1. Your biggest bottleneck — which part of the business is slowed down, and why (1–2 sentences).',
+    '2. Your repetitive tasks — the top 3, in plain words, and what each one probably is.',
+    '3. The AI agents you need — for each task: the agent name, what it does, and which tools it connects.',
+    '4. How to fix it — a simple step-by-step process for the #1 task (5 steps max).',
+    '5. What it is costing you — hours per week and dollars per month. Assume $45/hour unless told otherwise,',
+    '   and say clearly that these are estimates.',
+    '6. Tools you might not need — software that overlaps or is barely used.',
+    '7. Your next 30 days — one simple action per week.',
     '',
-    '### 1. Executive Summary',
-    'Three to five bullet points with the single biggest saving, the biggest time sink, and the top recommendation.',
+    'Only use the data below. If you have to guess, say so.',
     '',
-    '### 2. SaaS Consolidation',
-    'Group tools with overlapping functions (e.g. multiple project, docs, CRM or chat tools). For each group,',
-    'recommend which tool to keep, which to retire, and why — based on observed usage share.',
-    '',
-    '### 3. Shelfware Savings',
-    'Identify tools with very low active minutes or visit counts relative to the window (likely paid but',
-    'barely used). Provide a table: Domain | Active min | Visits | Usage signal | Recommendation | Est. monthly',
-    'savings (as an assumption-based range using typical public list pricing, clearly marked as estimates).',
-    '',
-    '### 4. Payroll Waste Math',
-    'Quantify (a) time lost to rapid context switching and (b) time spent executing repeated workflow loops.',
-    'Show the formula, the low/high case, and the per-employee monthly and annual dollar cost, then the cost',
-    'for a 10-person and 50-person team doing the same role.',
-    '',
-    '### 5. Automation & AI Agent Gap Map',
-    'For each repeated workflow loop, describe the likely manual task it represents, then specify the AI agent',
-    'or automation that should replace it: agent name, trigger, inputs, actions, systems it connects (from the',
-    'observed domains), human-in-the-loop checkpoint, build complexity (Low/Med/High), and estimated hours',
-    'saved per month. Rank by ROI.',
-    '',
-    '### 6. 30-Day AI Infrastructure Roadmap',
-    'Week-by-week plan (Week 1 → Week 4): quick wins, tool retirements, agents to build first, integrations',
-    '(e.g. Make.com / n8n / native APIs), owners, and success metrics to re-measure with a second audit.',
-    '',
-    '### 7. Assumptions & Data Limitations',
-    'List every assumption used and what additional data (seat counts, contract prices, headcount) would',
-    'sharpen the numbers.',
-    '',
-    '## Audit telemetry (JSON)',
+    'Data (JSON):',
     '```json',
     JSON.stringify(payload, null, 2),
     '```'
@@ -471,21 +418,44 @@ function buildAnalysisPrompt(payload) {
 /* ------------------------------------------------------------------ */
 
 async function refreshForExport() {
-  // Pull the latest committed time before exporting.
   await sendMessage({ type: 'flush' });
   const { metrics } = await chrome.storage.local.get('metrics');
   latestMetrics = metrics || null;
 }
 
+function canSeeResults() {
+  return isBusiness() || hasEmail();
+}
+
+async function handleStart() {
+  const res = await sendMessage({ type: 'setEnabled', enabled: true });
+  if (!res.ok) {
+    showToast(res.error === 'trial_used' ? 'Your free audit is used. Upgrade to keep going.' : "Couldn't start. Try again.", 'error');
+  } else {
+    showToast("You're all set. Work like normal.", 'ok');
+  }
+  await refresh();
+}
+
+async function handleToggle() {
+  const enabled = el.enabledToggle.checked;
+  el.enabledToggle.disabled = true;
+  const res = await sendMessage({ type: 'setEnabled', enabled });
+  el.enabledToggle.disabled = false;
+  if (!res.ok) {
+    el.enabledToggle.checked = !enabled;
+    showToast(res.error === 'trial_used' ? 'Your free audit is used. Upgrade to keep going.' : "Couldn't change tracking. Try again.", 'error');
+  }
+  await refresh();
+}
+
 async function handleDownload() {
-  if (!isUnlocked()) return;
+  if (!canSeeResults()) return;
   await refreshForExport();
   const payload = buildPayload();
-  const json = JSON.stringify(payload, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const filename = `workflow-audit-${slugify(payload.auditMetadata.roleTag)}-${localDateStamp(new Date())}.json`;
-
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -493,7 +463,7 @@ async function handleDownload() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
-  showToast('Downloaded ' + filename, 'ok');
+  showToast('Saved ' + filename, 'ok');
 }
 
 async function copyText(text) {
@@ -503,7 +473,6 @@ async function copyText(text) {
   } catch (e) {
     const ta = document.createElement('textarea');
     ta.value = text;
-    ta.setAttribute('readonly', '');
     ta.style.position = 'fixed';
     ta.style.opacity = '0';
     document.body.appendChild(ta);
@@ -520,15 +489,35 @@ async function copyText(text) {
 }
 
 async function handleCopyPrompt() {
-  if (!isUnlocked()) return;
+  if (!canSeeResults()) return;
+  await refreshForExport();
+  const ok = await copyText(buildAnalysisPrompt(buildPayload()));
+  showToast(ok ? 'Copied! Paste it into ChatGPT or Claude.' : "Couldn't copy. Try again.", ok ? 'ok' : 'error');
+}
+
+async function handleSync() {
+  if (!isBusiness()) return;
   await refreshForExport();
   const payload = buildPayload();
-  const prompt = buildAnalysisPrompt(payload);
-  const ok = await copyText(prompt);
-  if (ok) {
-    showToast('Prompt + data copied. Paste into Claude or ChatGPT.', 'ok');
-  } else {
-    showToast('Copy failed — please try again.', 'error');
+  if (payload.softwareUsage.length === 0) {
+    showToast('Nothing to send yet. Work a little first.', 'error');
+    return;
+  }
+  el.syncBtn.disabled = true;
+  el.syncBtn.textContent = 'Sending…';
+  try {
+    const result = await postJson('/api/sync.php', { key: profile.access.value, payload });
+    if (result.ok) {
+      showToast('Sent to your Business Portal.', 'ok');
+    } else {
+      showToast(result.error || "Couldn't send. Try again.", 'error');
+      if (/not active/i.test(result.error || '')) await revalidateBusinessKey(true);
+    }
+  } catch (e) {
+    showToast("Couldn't connect. Try again shortly.", 'error');
+  } finally {
+    el.syncBtn.textContent = 'Send to my Business Portal';
+    el.syncBtn.disabled = false;
   }
 }
 
@@ -537,42 +526,13 @@ function validateWebhookUrl(value) {
   try {
     url = new URL(value);
   } catch (e) {
-    return { ok: false, reason: 'Enter a full webhook URL starting with https://' };
+    return { ok: false, reason: 'Paste the full webhook link (starts with https://).' };
   }
   const isLocal = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
   if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocal)) {
-    return { ok: false, reason: 'Webhook must use https:// (http:// allowed only for localhost).' };
+    return { ok: false, reason: 'The webhook link must start with https://' };
   }
   return { ok: true, url: url.toString() };
-}
-
-async function handleSync() {
-  if (!isBusiness()) return;
-  await refreshForExport();
-  const payload = buildPayload();
-  if (payload.softwareUsage.length === 0) {
-    showToast('Nothing to sync yet — shadow some work first.', 'error');
-    return;
-  }
-  el.syncBtn.disabled = true;
-  el.syncBtn.textContent = 'Syncing…';
-  try {
-    const result = await postJson('/api/sync.php', { key: profile.access.value, payload });
-    if (result.ok) {
-      showToast('Synced to your Business Portal.', 'ok');
-    } else {
-      showToast('Sync failed: ' + (result.error || 'unknown error'), 'error');
-      if (/not active/i.test(result.error || '')) {
-        profile.access.validatedAt = null;
-        await revalidateBusinessKey();
-      }
-    }
-  } catch (e) {
-    showToast('Could not reach the Business server. Try again shortly.', 'error');
-  } finally {
-    el.syncBtn.textContent = 'Sync to Business Portal';
-    el.syncBtn.disabled = !isBusiness();
-  }
 }
 
 async function handleWebhook() {
@@ -582,10 +542,8 @@ async function handleWebhook() {
     showToast(check.reason, 'error');
     return;
   }
-
   profile.webhookUrl = check.url;
   await saveProfile();
-
   await refreshForExport();
   const body = JSON.stringify(buildPayload());
 
@@ -593,180 +551,255 @@ async function handleWebhook() {
   el.webhookBtn.textContent = 'Sending…';
   try {
     let delivered = false;
-    let statusText = '';
     try {
-      const res = await fetch(check.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      });
+      const res = await fetch(check.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
       delivered = res.ok;
-      statusText = `HTTP ${res.status}`;
     } catch (corsOrNetworkError) {
-      // Many webhook endpoints don't answer CORS preflights. Retry as a
-      // "simple" request: the payload is still delivered, but the response
-      // is opaque, so we can't read the status code.
-      await fetch(check.url, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-        body
-      });
+      // Many webhook tools don't answer browser CORS checks. Resend as a simple
+      // request: it still arrives, we just can't read the reply.
+      await fetch(check.url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=UTF-8' }, body });
       delivered = true;
-      statusText = 'sent (response not readable due to CORS)';
     }
-
-    if (delivered) {
-      showToast('Webhook delivered — ' + statusText, 'ok');
-    } else {
-      showToast('Webhook responded with ' + statusText, 'error');
-    }
+    showToast(delivered ? 'Sent.' : 'The webhook said no. Check the link.', delivered ? 'ok' : 'error');
   } catch (e) {
-    showToast('Webhook failed: ' + (e && e.message ? e.message : 'network error'), 'error');
+    showToast("Couldn't send. Check the link and try again.", 'error');
   } finally {
-    el.webhookBtn.disabled = !isBusiness();
-    el.webhookBtn.textContent = 'POST JSON Payload';
+    el.webhookBtn.disabled = false;
+    el.webhookBtn.textContent = 'Send';
   }
 }
 
 async function handleReset() {
   if (!el.resetBtn.classList.contains('confirming')) {
     el.resetBtn.classList.add('confirming');
-    el.resetBtn.textContent = 'Click again to permanently erase session data';
+    el.resetBtn.textContent = 'Click again to erase this audit and start over';
     clearTimeout(resetConfirmTimer);
     resetConfirmTimer = setTimeout(cancelResetConfirm, RESET_CONFIRM_MS);
     return;
   }
   cancelResetConfirm();
   const res = await sendMessage({ type: 'reset' });
-  if (res.ok) {
-    showToast('Session reset. All metrics cleared.', 'ok');
-  } else {
-    showToast('Reset failed: ' + (res.error || 'unknown error'), 'error');
-  }
+  showToast(res.ok ? 'New audit started.' : res.error || "Couldn't start over.", res.ok ? 'ok' : 'error');
   await refresh();
 }
 
 function cancelResetConfirm() {
   clearTimeout(resetConfirmTimer);
   el.resetBtn.classList.remove('confirming');
-  el.resetBtn.textContent = 'Reset Session';
+  el.resetBtn.textContent = 'Start a new audit';
 }
 
-async function handleToggle() {
-  const enabled = el.enabledToggle.checked;
-  el.enabledToggle.disabled = true;
-  const res = await sendMessage({ type: 'setEnabled', enabled });
-  el.enabledToggle.disabled = false;
-  if (!res.ok) {
-    el.enabledToggle.checked = !enabled;
-    showToast('Could not change shadowing: ' + (res.error || 'unknown error'), 'error');
-  } else {
-    showToast(enabled ? 'Shadowing is ON.' : 'Shadowing is OFF.', enabled ? 'ok' : '');
-  }
-  await refresh();
-}
-
-function handleRoleInput() {
-  clearTimeout(roleSaveTimer);
-  roleSaveTimer = setTimeout(async () => {
-    profile.roleTag = el.roleInput.value.trim().slice(0, 40);
-    await saveProfile();
-  }, 300);
+function openUpgrade() {
+  const email = profile.access && profile.access.mode === 'email' ? profile.access.value : '';
+  openTab(BUSINESS_BASE_URL + '/' + (email ? '?email=' + encodeURIComponent(email) : ''));
 }
 
 /* ------------------------------------------------------------------ */
 /* Rendering                                                           */
 /* ------------------------------------------------------------------ */
 
-function renderStatus(enabled, tracking, idleState) {
-  el.enabledToggle.checked = enabled;
-  el.statusPill.classList.remove('on', 'paused');
-  if (!enabled) {
-    el.statusPill.textContent = 'OFF';
-    el.toggleSub.textContent = 'Tracking is paused';
-  } else if (tracking) {
-    el.statusPill.textContent = '● LIVE';
-    el.statusPill.classList.add('on');
-    el.toggleSub.textContent = 'Passively shadowing domains & time';
-  } else {
-    el.statusPill.textContent = 'PAUSED';
-    el.statusPill.classList.add('paused');
-    el.toggleSub.textContent =
-      idleState && idleState !== 'active'
-        ? 'Auto-paused: you are ' + idleState
-        : 'Auto-paused: no tracked tab in focus';
-  }
+function show(node, visible) {
+  node.classList.toggle('hidden', !visible);
 }
 
-function renderLoop(loop) {
-  el.statLoop.textContent = '';
-  if (!loop) {
-    const empty = document.createElement('div');
-    empty.className = 'empty';
-    empty.textContent = 'No repeated loops detected yet';
-    el.statLoop.appendChild(empty);
-    return;
-  }
-  const seq = document.createElement('div');
-  seq.className = 'loop-seq';
-  loop.sequence.forEach((domain, i) => {
+function flowNode(names, className) {
+  const div = document.createElement('div');
+  div.className = className || 'flow';
+  names.forEach((name, i) => {
     if (i > 0) {
       const arrow = document.createElement('span');
       arrow.className = 'arrow';
       arrow.textContent = '→';
-      seq.appendChild(arrow);
+      div.appendChild(arrow);
     }
-    seq.appendChild(document.createTextNode(domain));
+    div.appendChild(document.createTextNode(name));
   });
-  const count = document.createElement('span');
-  count.className = 'loop-count';
-  count.textContent = `Repeated ${loop.repeatCount}×`;
-  el.statLoop.appendChild(seq);
-  el.statLoop.appendChild(count);
+  return div;
 }
 
-function renderTopTools(entries) {
-  el.topTools.textContent = '';
-  const top = entries.filter((e) => e.activeSeconds > 0).slice(0, 5);
-  if (top.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'empty';
-    li.textContent = 'Nothing recorded yet';
-    el.topTools.appendChild(li);
+function textNode(tag, text, className) {
+  const n = document.createElement(tag);
+  if (className) n.className = className;
+  n.textContent = text;
+  return n;
+}
+
+function renderStats(insight, totalSeconds) {
+  el.statHours.textContent = hours(totalSeconds);
+  el.statTools.textContent = String(insight ? insight.toolCount : 0);
+  el.statSwitches.textContent = String(insight ? insight.quickSwitches : 0);
+  el.statLoop.textContent = '';
+  if (insight && insight.loop) {
+    const flow = flowNode(insight.loop.names);
+    flow.appendChild(textNode('span', `  ·  ${insight.loop.count} times`, 'muted'));
+    el.statLoop.className = '';
+    el.statLoop.appendChild(flow);
+  } else {
+    el.statLoop.className = 'flow muted';
+    el.statLoop.textContent = 'Nothing repeated yet';
+  }
+}
+
+function renderResults(insight) {
+  const key = JSON.stringify(insight);
+  if (key === lastResultsKey) return; // avoid re-drawing every 5 seconds
+  lastResultsKey = key;
+
+  const body = el.resultsBody;
+  body.textContent = '';
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+
+  if (!insight) {
+    wrap.appendChild(textNode('p', 'Not enough data yet. Keep working and check back soon.', 'muted'));
+    body.appendChild(wrap);
     return;
   }
-  top.forEach((e) => {
-    const li = document.createElement('li');
-    const d = document.createElement('span');
-    d.className = 'd';
-    d.textContent = e.domain;
-    const m = document.createElement('span');
-    m.className = 'm';
-    m.textContent = `${formatMinutes(e.activeSeconds)} · ${e.visitCount} visit${e.visitCount === 1 ? '' : 's'}`;
-    li.appendChild(d);
-    li.appendChild(m);
-    el.topTools.appendChild(li);
-  });
+
+  // 1. Bottleneck + repetitive task
+  const task = document.createElement('div');
+  task.className = 'result';
+  task.appendChild(textNode('span', 'Bottleneck: ' + insight.main.area, 'tag'));
+  task.appendChild(textNode('div', 'Your most repeated task', 'label'));
+  if (insight.loop) {
+    task.appendChild(flowNode(insight.loop.names));
+    task.appendChild(textNode('div', `You did this ${insight.loop.count} times.`, 'muted small'));
+  }
+  task.appendChild(textNode('div', insight.main.task));
+  const pct = insight.totalSeconds ? Math.round((insight.focusSeconds / insight.totalSeconds) * 100) : 0;
+  task.appendChild(textNode('div',
+    `Time in these tools: ${hours(insight.focusSeconds)} of ${hours(insight.totalSeconds)} hours (${pct}%).`, 'muted small'));
+  wrap.appendChild(task);
+
+  // 2. Agent
+  const agent = document.createElement('div');
+  agent.className = 'result agent';
+  agent.appendChild(textNode('div', 'The AI agent you need', 'label'));
+  agent.appendChild(textNode('div', insight.main.agent, 'big'));
+  agent.appendChild(textNode('div', insight.main.does));
+  wrap.appendChild(agent);
+
+  // 3. Process
+  const fix = document.createElement('div');
+  fix.className = 'result';
+  fix.appendChild(textNode('div', 'How to fix it', 'label'));
+  const ol = document.createElement('ol');
+  ol.className = 'steps';
+  insight.main.steps.forEach((s) => ol.appendChild(textNode('li', s)));
+  fix.appendChild(ol);
+  wrap.appendChild(fix);
+
+  // 4. Also worth fixing
+  if (insight.extras.length) {
+    const more = document.createElement('div');
+    more.className = 'result';
+    more.appendChild(textNode('div', 'Also worth fixing', 'label'));
+    insight.extras.forEach((x) => {
+      const line = document.createElement('div');
+      line.appendChild(textNode('b', x.agent));
+      line.appendChild(document.createTextNode(' — ' + x.does));
+      more.appendChild(line);
+    });
+    wrap.appendChild(more);
+  }
+
+  body.appendChild(wrap);
 }
 
-function renderMetrics(metrics) {
-  const summary = computeSummary(metrics);
-  el.statHours.textContent = (summary.totalSeconds / 3600).toFixed(2);
-  el.statTools.textContent = String(summary.entries.length);
-  el.statSwitches.textContent = String(summary.rapidContextSwitches);
-  renderLoop(summary.loops[0] || null);
-  renderTopTools(summary.entries);
-  el.updatedAt.textContent = 'updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function render() {
+  const tier = currentTier();
+  const business = tier === 'business';
+  const trial = status.trial || {};
+  const target = status.liteTargetSeconds || DEFAULT_LITE_TARGET;
+  const totalSeconds = computeSummary(latestMetrics).totalSeconds;
+  const insight = buildInsights(latestMetrics);
+
+  const liteNotStarted = !business && !trial.startedAt;
+  const liteRunning = !business && !!trial.startedAt && !trial.completedAt;
+  const liteDone = !business && !!trial.completedAt;
+
+  // Screens
+  show(el.viewStart, liteNotStarted);
+  show(el.viewTracking, business || liteRunning);
+  show(el.progressBox, liteRunning);
+  show(el.roleRowTracking, business);
+  show(el.viewReady, liteDone && !hasEmail());
+  show(el.viewResults, (business && !!insight) || (liteDone && hasEmail()));
+  show(el.liteDoneBox, !business);
+  show(el.businessBox, business);
+  show(el.upgradeRunning, liteRunning);
+
+  // Status pill
+  el.statusPill.className = 'pill';
+  if (liteDone) {
+    el.statusPill.textContent = 'RESULTS READY';
+    el.statusPill.classList.add('done');
+  } else if (liteNotStarted) {
+    el.statusPill.textContent = '';
+  } else if (!status.enabled) {
+    el.statusPill.textContent = 'OFF';
+  } else if (status.tracking) {
+    el.statusPill.textContent = '● ON';
+    el.statusPill.classList.add('on');
+  } else {
+    el.statusPill.textContent = 'PAUSED';
+    el.statusPill.classList.add('paused');
+  }
+  show(el.statusPill, !!el.statusPill.textContent);
+
+  // Tracking card
+  el.enabledToggle.checked = !!status.enabled;
+  if (!status.enabled) {
+    el.trackTitle.textContent = 'Tracking is off';
+    el.trackSub.textContent = 'Turn it on to continue.';
+  } else if (status.tracking) {
+    el.trackTitle.textContent = 'Tracking';
+    el.trackSub.textContent = 'Work like normal.';
+  } else {
+    el.trackTitle.textContent = 'Paused';
+    el.trackSub.textContent =
+      status.idleState && status.idleState !== 'active'
+        ? "Paused while you're away."
+        : 'Paused while Chrome is in the background.';
+  }
+
+  if (liteRunning) {
+    const pct = Math.min(100, Math.round((totalSeconds / target) * 100));
+    el.progressBar.style.width = pct + '%';
+    el.progressText.textContent = `${hours(totalSeconds)} of ${target / 3600} hours`;
+    const left = Math.max(0, target - totalSeconds);
+    el.progressLeft.textContent = left > 0 ? `about ${hours(left)} hrs to go` : 'almost done…';
+  }
+
+  renderStats(insight, totalSeconds);
+
+  // Results
+  el.resultsTitle.textContent = business ? 'Your results so far' : 'Your results';
+  if (!el.viewResults.classList.contains('hidden')) renderResults(insight);
+
+  // Business key area
+  show(el.keyLinkRow, !business && el.keyBox.classList.contains('hidden'));
+  show(el.bizRow, business);
+  if (business) {
+    el.keyBox.classList.add('hidden');
+    el.bizText.textContent = 'Business' + (profile.access.company ? ' · ' + profile.access.company : '');
+  }
 }
 
 async function refresh() {
   const flush = await sendMessage({ type: 'flush' });
-  const { settings, metrics } = await chrome.storage.local.get(['settings', 'metrics']);
+  const { metrics, settings, trial } = await chrome.storage.local.get(['metrics', 'settings', 'trial']);
   latestMetrics = metrics || null;
-  const enabled = !!(settings && settings.enabled);
-  renderStatus(enabled, !!(flush && flush.tracking), flush && flush.idleState);
-  renderMetrics(latestMetrics);
+  status = {
+    enabled: flush.ok ? !!flush.enabled : !!(settings && settings.enabled),
+    tracking: !!flush.tracking,
+    idleState: flush.idleState || 'active',
+    trial: (flush.ok ? flush.trial : trial) || {},
+    liteTargetSeconds: flush.liteTargetSeconds || DEFAULT_LITE_TARGET
+  };
+  render();
 }
 
 /* ------------------------------------------------------------------ */
@@ -775,44 +808,49 @@ async function refresh() {
 
 async function init() {
   await loadProfile();
-  el.roleInput.value = profile.roleTag || '';
+  el.roleInputs.forEach((input) => {
+    input.value = profile.roleTag || '';
+    input.addEventListener('input', handleRoleInput);
+  });
   el.webhookInput.value = profile.webhookUrl || '';
-  renderGate();
 
+  el.startBtn.addEventListener('click', handleStart);
   el.enabledToggle.addEventListener('change', handleToggle);
-  el.roleInput.addEventListener('input', handleRoleInput);
-  el.gateBtn.addEventListener('click', handleUnlock);
-  el.gateInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') handleUnlock();
+  el.emailBtn.addEventListener('click', handleEmail);
+  el.emailInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleEmail();
   });
-  el.lockBtn.addEventListener('click', handleLock);
-  el.downloadBtn.addEventListener('click', handleDownload);
+  el.keyLink.addEventListener('click', () => {
+    el.keyBox.classList.remove('hidden');
+    el.keyLinkRow.classList.add('hidden');
+    el.keyInput.focus();
+  });
+  el.keyBtn.addEventListener('click', handleKey);
+  el.keyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handleKey();
+  });
+  el.bizChange.addEventListener('click', handleChangeKey);
   el.copyPromptBtn.addEventListener('click', handleCopyPrompt);
-  el.webhookBtn.addEventListener('click', handleWebhook);
-  el.webhookDetails.addEventListener('toggle', () => {
-    if (!isBusiness() && el.webhookDetails.open) el.webhookDetails.open = false;
-  });
+  el.downloadBtn.addEventListener('click', handleDownload);
   el.syncBtn.addEventListener('click', handleSync);
   el.portalBtn.addEventListener('click', () => {
     openTab((profile.access && profile.access.portalUrl) || BUSINESS_BASE_URL + '/portal.php');
   });
-  el.upgradeBtn.addEventListener('click', () => {
-    const email = profile.access && profile.access.mode === 'email' ? profile.access.value : '';
-    openTab(BUSINESS_BASE_URL + '/' + (email ? '?email=' + encodeURIComponent(email) : ''));
-  });
+  el.webhookBtn.addEventListener('click', handleWebhook);
   el.resetBtn.addEventListener('click', handleReset);
+  el.upgradeBtns.forEach((b) => b.addEventListener('click', openUpgrade));
 
   await refresh();
   refreshTimer = setInterval(refresh, REFRESH_MS);
-  revalidateBusinessKey();
+  revalidateBusinessKey(false);
 }
 
 window.addEventListener('pagehide', () => {
   clearInterval(refreshTimer);
-  // Persist any pending role edit immediately.
   if (roleSaveTimer) {
     clearTimeout(roleSaveTimer);
-    profile.roleTag = el.roleInput.value.trim().slice(0, 40);
+    const input = el.roleInputs.find((i) => i.value) || el.roleInputs[0];
+    profile.roleTag = input.value.trim().slice(0, 40);
     chrome.storage.local.set({ profile });
   }
 });

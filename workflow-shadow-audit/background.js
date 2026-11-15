@@ -28,6 +28,13 @@ const LOOP_KEYS_AFTER_PRUNE = 750;
 const LOOP_SEPARATOR = ' -> ';
 
 const BADGE_COLOR_ON = '#16a34a';
+const BADGE_COLOR_DONE = '#7c5cff';
+
+// Free (Lite) audit: results unlock and tracking stops after 5 tracked hours,
+// or after 24 hours on the clock if at least 2 hours were tracked.
+const LITE_TARGET_SECONDS = 5 * 60 * 60;
+const LITE_MAX_ELAPSED_MS = 24 * 60 * 60 * 1000;
+const LITE_MIN_SECONDS_AFTER_DAY = 2 * 60 * 60;
 
 /* ------------------------------------------------------------------ */
 /* Defaults                                                            */
@@ -76,11 +83,13 @@ function enqueue(task) {
 /* ------------------------------------------------------------------ */
 
 async function loadState() {
-  const stored = await chrome.storage.local.get(['settings', 'metrics', 'runtime']);
+  const stored = await chrome.storage.local.get(['settings', 'metrics', 'runtime', 'trial', 'profile']);
   return {
     settings: Object.assign(defaultSettings(), stored.settings || {}),
     metrics: Object.assign(defaultMetrics(), stored.metrics || {}),
-    runtime: Object.assign(defaultRuntime(), stored.runtime || {})
+    runtime: Object.assign(defaultRuntime(), stored.runtime || {}),
+    trial: Object.assign({ startedAt: null, completedAt: null }, stored.trial || {}),
+    profile: stored.profile || {} // owned by the popup; read-only here
   };
 }
 
@@ -88,8 +97,48 @@ async function saveState(state) {
   await chrome.storage.local.set({
     settings: state.settings,
     metrics: state.metrics,
-    runtime: state.runtime
+    runtime: state.runtime,
+    trial: state.trial
   });
+}
+
+/** Save, after checking whether the free audit just finished. */
+async function persist(state) {
+  const finished = checkLiteComplete(state, Date.now());
+  await saveState(state);
+  if (finished) await updateBadge(state);
+}
+
+/* ------------------------------------------------------------------ */
+/* Free (Lite) audit limit                                             */
+/* ------------------------------------------------------------------ */
+
+function isBusiness(state) {
+  const a = state.profile && state.profile.access;
+  return !!(a && a.mode === 'key' && a.tier === 'business');
+}
+
+function totalActiveSeconds(metrics) {
+  return Object.values(metrics.domains || {}).reduce((sum, d) => sum + (d.activeSeconds || 0), 0);
+}
+
+function liteIsUsed(state) {
+  return !isBusiness(state) && !!state.trial.completedAt;
+}
+
+/** Ends the free audit when it has enough data. Returns true if it just ended. */
+function checkLiteComplete(state, now) {
+  const t = state.trial;
+  if (isBusiness(state) || !state.settings.enabled || !t.startedAt || t.completedAt) return false;
+  const total = totalActiveSeconds(state.metrics);
+  const elapsed = now - Date.parse(t.startedAt);
+  const ready = total >= LITE_TARGET_SECONDS || (elapsed >= LITE_MAX_ELAPSED_MS && total >= LITE_MIN_SECONDS_AFTER_DAY);
+  if (!ready) return false;
+  commitSegment(state, now, 0);
+  t.completedAt = new Date(now).toISOString();
+  state.settings.enabled = false;
+  state.runtime.segmentStart = null;
+  return true;
 }
 
 /* ------------------------------------------------------------------ */
@@ -120,17 +169,21 @@ function tabDomain(tab) {
 /* Badge                                                               */
 /* ------------------------------------------------------------------ */
 
-async function updateBadge(enabled) {
+async function updateBadge(state) {
+  const enabled = state.settings.enabled;
+  const done = !enabled && liteIsUsed(state);
   try {
-    await chrome.action.setBadgeBackgroundColor({ color: BADGE_COLOR_ON });
+    await chrome.action.setBadgeBackgroundColor({ color: done ? BADGE_COLOR_DONE : BADGE_COLOR_ON });
     if (chrome.action.setBadgeTextColor) {
       await chrome.action.setBadgeTextColor({ color: '#ffffff' });
     }
-    await chrome.action.setBadgeText({ text: enabled ? 'ON' : '' });
+    await chrome.action.setBadgeText({ text: enabled ? 'ON' : done ? 'DONE' : '' });
     await chrome.action.setTitle({
       title: enabled
-        ? 'Workflow Shadow Audit — shadowing ON'
-        : 'Workflow Shadow Audit — shadowing OFF'
+        ? 'Workflow Shadow Audit — tracking ON'
+        : done
+          ? 'Workflow Shadow Audit — your results are ready'
+          : 'Workflow Shadow Audit — tracking OFF'
     });
   } catch (e) {
     console.error('[ShadowAudit] badge update failed', e);
@@ -291,8 +344,8 @@ async function initialize({ freshBrowserSession }) {
     }
     state.runtime.idleState = await queryIdleState();
     await resyncContext(state, { countAsSwitch: false });
-    await saveState(state);
-    await updateBadge(state.settings.enabled);
+    await persist(state);
+    await updateBadge(state);
   });
 }
 
@@ -321,7 +374,7 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
     }
     state.runtime.focusedWindowId = windowId;
     applyContext(state, tabDomain(tab), true);
-    await saveState(state);
+    await persist(state);
   });
 });
 
@@ -334,7 +387,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const domain = toDomain(changeInfo.url);
     if (domain === rt.currentDomain) return; // same-site navigation: keep segment running
     applyContext(state, domain, false);
-    await saveState(state);
+    await persist(state);
   });
 });
 
@@ -352,7 +405,7 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
       const tab = await getActiveTabInWindow(windowId);
       applyContext(state, tabDomain(tab), false);
     }
-    await saveState(state);
+    await persist(state);
   });
 });
 
@@ -376,7 +429,7 @@ chrome.idle.onStateChanged.addListener((newState) => {
       commitSegment(state, now, newState === 'idle' ? IDLE_THRESHOLD_SECONDS * 1000 : 0);
       rt.idleState = newState;
     }
-    await saveState(state);
+    await persist(state);
   });
 });
 
@@ -411,8 +464,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const now = Date.now();
           commitSegment(state, now, 0);
           openSegment(state, now);
-          await saveState(state);
-          return { tracking: isTracking(state), idleState: state.runtime.idleState };
+          await persist(state);
+          return {
+            enabled: state.settings.enabled,
+            tracking: isTracking(state),
+            idleState: state.runtime.idleState,
+            trial: state.trial,
+            liteTargetSeconds: LITE_TARGET_SECONDS
+          };
         })
       );
 
@@ -421,8 +480,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         enqueue(async () => {
           const state = await loadState();
           const enabled = !!message.enabled;
+          if (enabled && liteIsUsed(state)) {
+            throw new Error('trial_used');
+          }
           commitSegment(state, Date.now(), 0);
           state.settings.enabled = enabled;
+          if (enabled && !isBusiness(state) && !state.trial.startedAt) {
+            state.trial.startedAt = new Date().toISOString();
+          }
           if (enabled) {
             state.runtime.idleState = await queryIdleState();
             state.runtime.lastSwitchAt = null;
@@ -430,9 +495,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           } else {
             state.runtime.segmentStart = null;
           }
-          await saveState(state);
-          await updateBadge(enabled);
-          return { enabled };
+          await persist(state);
+          await updateBadge(state);
+          return { enabled: state.settings.enabled };
         })
       );
 
@@ -440,6 +505,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return respond(
         enqueue(async () => {
           const state = await loadState();
+          if (!isBusiness(state)) {
+            throw new Error('Starting a new audit is a Business feature.');
+          }
           state.metrics = defaultMetrics();
           const keep = state.runtime;
           state.runtime = defaultRuntime();
@@ -447,7 +515,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           state.runtime.windowFocused = keep.windowFocused;
           state.runtime.focusedWindowId = keep.focusedWindowId;
           await resyncContext(state, { countAsSwitch: false });
-          await saveState(state);
+          await persist(state);
           return {};
         })
       );

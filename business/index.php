@@ -22,19 +22,20 @@ render_header('Upgrade to Business');
   <section class="card plan">
     <h2>Lite <span class="price">Free</span></h2>
     <ul>
-      <li>Chrome extension, 100% read-only</li>
-      <li>Live dashboard: hours, tools, loops, context switches</li>
-      <li>JSON export + AI analysis prompt (unlock with work email)</li>
+      <li>One free audit: 5 hours of your work</li>
+      <li>Your most repeated task</li>
+      <li>The AI agent that can do it for you</li>
+      <li>A simple step-by-step fix</li>
       <li>One person, one browser</li>
     </ul>
-    <p class="muted small">Install the extension and start shadowing today.</p>
+    <p class="muted small">Install the Chrome extension and start today.</p>
   </section>
 
   <section class="card plan featured">
     <h2>Business <span class="price"><?= h((string) cfg('price_label')) ?></span></h2>
     <ul>
-      <li>Everything in Lite</li>
-      <li>License key for your whole team's extensions</li>
+      <li>Everything in Lite, with no time limit</li>
+      <li>One key for your whole team</li>
       <li>One-click sync of every audit to your company portal</li>
       <li>Business profile: social media, tools, departments, goals</li>
       <li>Team-wide AI Agent Gap Map &amp; 30-day roadmap prompt</li>

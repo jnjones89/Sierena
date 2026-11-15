@@ -6,384 +6,229 @@
   <title>Workflow Shadow Audit</title>
   <style>
     :root {
-      --bg: #0b0f17;
-      --panel: #121826;
-      --panel-2: #182033;
-      --border: #243049;
-      --text: #e6ebf5;
-      --muted: #8b97ad;
-      --accent: #7c5cff;
-      --accent-2: #5b8cff;
-      --green: #22c55e;
-      --green-bg: rgba(34, 197, 94, 0.12);
-      --amber: #f59e0b;
-      --red: #ef4444;
-      --red-bg: rgba(239, 68, 68, 0.12);
-      --radius: 12px;
+      --bg: #0b0f17; --panel: #121826; --panel-2: #182033; --border: #243049;
+      --text: #e6ebf5; --muted: #8b97ad; --accent: #7c5cff; --accent-2: #5b8cff;
+      --green: #22c55e; --green-bg: rgba(34,197,94,.12); --amber: #f59e0b;
+      --red: #ef4444; --red-bg: rgba(239,68,68,.12); --radius: 12px;
     }
-
     * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
-    }
-
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+      font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif; }
     body { width: 380px; }
-
     .wrap { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .hidden { display: none !important; }
 
     header { display: flex; flex-direction: column; gap: 6px; }
-
     .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+    h2 { margin: 0; font-size: 17px; letter-spacing: -0.01em; }
+    p { margin: 0; }
+    .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+    .pill.on { color: var(--green); border-color: rgba(34,197,94,.4); background: var(--green-bg); }
+    .pill.paused { color: var(--amber); border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.1); }
+    .pill.done { color: #c9bcff; border-color: rgba(124,92,255,.5); background: rgba(124,92,255,.14); }
+    .privacy { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 11px;
+      font-weight: 600; color: var(--green); background: var(--green-bg); border: 1px solid rgba(34,197,94,.35);
+      padding: 3px 9px; border-radius: 999px; }
+    .privacy::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
 
-    h1 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      background: linear-gradient(90deg, #ffffff, #b9c4ff);
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-    }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .muted { color: var(--muted); }
+    .small { font-size: 11.5px; }
+    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 
-    .status-pill {
-      font-size: 11px;
-      font-weight: 600;
-      padding: 3px 8px;
-      border-radius: 999px;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      white-space: nowrap;
-    }
-    .status-pill.on { color: var(--green); border-color: rgba(34,197,94,.4); background: var(--green-bg); }
-    .status-pill.paused { color: var(--amber); border-color: rgba(245,158,11,.4); background: rgba(245,158,11,.1); }
+    ul.checks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    ul.checks li::before { content: "✓"; color: var(--green); font-weight: 700; margin-right: 8px; }
 
-    .privacy-badge {
-      align-self: flex-start;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--green);
-      background: var(--green-bg);
-      border: 1px solid rgba(34, 197, 94, 0.35);
-      padding: 3px 9px;
-      border-radius: 999px;
-    }
-    .privacy-badge::before {
-      content: "";
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--green);
-      box-shadow: 0 0 6px var(--green);
-    }
-
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .card-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--muted);
-      margin: 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-
-    label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
-
-    input[type="text"], input[type="email"], input[type="url"] {
-      width: 100%;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 8px 10px;
-      font: inherit;
-      outline: none;
-      transition: border-color .15s;
-    }
+    input[type="text"], input[type="url"] { width: 100%; background: var(--panel-2); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; font: inherit; outline: none; }
     input:focus { border-color: var(--accent-2); }
     input::placeholder { color: #5d6880; }
+    label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
+    .inline { display: flex; gap: 6px; }
 
-    /* Toggle switch */
-    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
-    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
-    .slider {
-      position: absolute; inset: 0;
-      background: #2a3550;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: background .2s;
-    }
-    .slider::before {
-      content: "";
-      position: absolute;
-      width: 18px; height: 18px;
-      left: 3px; top: 3px;
-      background: #fff;
-      border-radius: 50%;
-      transition: transform .2s;
-    }
-    .switch input:checked + .slider { background: var(--green); }
-    .switch input:checked + .slider::before { transform: translateX(20px); }
-    .switch input:focus-visible + .slider { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-
-    .toggle-label { font-weight: 600; }
-    .toggle-sub { font-size: 11px; color: var(--muted); }
-
-    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat {
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-    }
-    .stat .value { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
-    .stat .label { font-size: 11px; color: var(--muted); }
-    .stat.wide { grid-column: 1 / -1; }
-
-    .loop-seq {
-      font-size: 12px;
-      font-weight: 600;
-      word-break: break-all;
-      margin-top: 2px;
-    }
-    .loop-seq .arrow { color: var(--accent-2); padding: 0 3px; }
-    .loop-count {
-      display: inline-block;
-      margin-top: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--accent);
-      background: rgba(124, 92, 255, .14);
-      padding: 2px 7px;
-      border-radius: 999px;
-    }
-    .empty { color: var(--muted); font-size: 12px; font-style: italic; }
-
-    .tools-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-    .tools-list li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
-    .tools-list .d { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tools-list .m { color: var(--muted); white-space: nowrap; }
-
-    button {
-      font: inherit;
-      font-weight: 600;
-      border-radius: 9px;
-      border: 1px solid var(--border);
-      background: var(--panel-2);
-      color: var(--text);
-      padding: 9px 12px;
-      cursor: pointer;
-      transition: background .15s, border-color .15s, opacity .15s;
-      width: 100%;
-    }
+    button { font: inherit; font-weight: 600; border-radius: 9px; border: 1px solid var(--border);
+      background: var(--panel-2); color: var(--text); padding: 10px 12px; cursor: pointer; width: 100%; }
     button:hover:not(:disabled) { border-color: var(--accent-2); }
     button:disabled { opacity: .45; cursor: not-allowed; }
-    button.primary {
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      border-color: transparent;
-      color: #fff;
-    }
-    button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+    button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border-color: transparent; color: #fff; }
+    button.upgrade { color: #d6ccff; border-color: rgba(124,92,255,.55); background: rgba(124,92,255,.12); }
     button.danger { color: var(--red); background: transparent; border-color: rgba(239,68,68,.35); }
     button.danger.confirming { background: var(--red-bg); border-color: var(--red); }
-    button.upgrade { color: #c9bcff; border-color: rgba(124,92,255,.55); background: rgba(124,92,255,.10); font-size: 12px; }
-    button.small { width: auto; padding: 8px 12px; flex: 0 0 auto; }
-    button.link {
-      width: auto; padding: 0; border: none; background: none;
-      color: var(--accent-2); font-size: 11px; font-weight: 600;
-    }
+    button.small-btn { width: auto; padding: 8px 12px; flex: 0 0 auto; }
+    button.link { width: auto; padding: 0; border: none; background: none; color: var(--accent-2); font-size: 12px; font-weight: 600; }
 
-    .gate-row { display: flex; gap: 6px; }
-    .gate-msg { font-size: 11px; min-height: 14px; color: var(--muted); }
-    .gate-msg.error { color: var(--red); }
-    .gate-msg.ok { color: var(--green); }
+    .switch { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+    .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .slider { position: absolute; inset: 0; background: #2a3550; border-radius: 999px; cursor: pointer; transition: background .2s; }
+    .slider::before { content: ""; position: absolute; width: 18px; height: 18px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%; transition: transform .2s; }
+    .switch input:checked + .slider { background: var(--green); }
+    .switch input:checked + .slider::before { transform: translateX(20px); }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
-    .unlocked-banner {
-      display: flex; justify-content: space-between; align-items: center; gap: 8px;
-      background: var(--green-bg);
-      border: 1px solid rgba(34,197,94,.35);
-      border-radius: 9px;
-      padding: 8px 10px;
-      font-size: 12px;
-      color: var(--green);
-      font-weight: 600;
-    }
+    .progress { height: 10px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+    .progress > div { height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--green)); transition: width .4s; }
 
-    .lock-note {
-      font-size: 11px;
-      color: var(--muted);
-      display: flex; align-items: center; gap: 6px;
-    }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .stat b { display: block; font-size: 20px; letter-spacing: -0.02em; }
+    .stat span { font-size: 11.5px; color: var(--muted); }
+    .stat.wide { grid-column: 1 / -1; }
+    .flow { font-weight: 600; font-size: 12.5px; word-break: break-word; }
+    .flow .arrow { color: var(--accent-2); padding: 0 3px; }
 
-    details.webhook { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
-    details.webhook summary {
-      cursor: pointer;
-      padding: 9px 12px;
-      font-weight: 600;
-      list-style: none;
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    details.webhook summary::-webkit-details-marker { display: none; }
-    details.webhook summary::after { content: "▸"; color: var(--muted); transition: transform .15s; }
-    details.webhook[open] summary::after { transform: rotate(90deg); }
-    details.webhook .body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
-    details.webhook.disabled summary { opacity: .45; cursor: not-allowed; }
-
+    .result { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+      display: flex; flex-direction: column; gap: 6px; }
+    .result.agent { border-color: rgba(124,92,255,.55); }
+    .big { font-size: 15px; font-weight: 700; }
+    .tag { align-self: flex-start; font-size: 11px; font-weight: 700; color: #ffd28a; background: rgba(245,158,11,.14);
+      padding: 2px 8px; border-radius: 999px; }
+    ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
     .actions { display: flex; flex-direction: column; gap: 8px; }
 
-    .toast {
-      font-size: 12px;
-      min-height: 16px;
-      text-align: center;
-      color: var(--muted);
-    }
-    .toast.ok { color: var(--green); }
-    .toast.error { color: var(--red); }
+    details.more { border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); }
+    details.more summary { cursor: pointer; padding: 9px 12px; font-weight: 600; list-style: none; }
+    details.more summary::-webkit-details-marker { display: none; }
+    details.more .body { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 
+    .msg { font-size: 11.5px; min-height: 14px; color: var(--muted); }
+    .msg.error { color: var(--red); } .msg.ok { color: var(--green); }
+    .toast { font-size: 12px; min-height: 16px; text-align: center; color: var(--muted); }
+    .toast.ok { color: var(--green); } .toast.error { color: var(--red); }
     footer { font-size: 10.5px; color: #5d6880; text-align: center; line-height: 1.4; }
-
-    .hidden { display: none !important; }
+    .key-row { display: flex; justify-content: center; }
   </style>
 </head>
 <body>
   <div class="wrap">
 
-    <!-- Header -->
     <header>
       <div class="title-row">
         <h1>Workflow Shadow Audit</h1>
-        <span id="statusPill" class="status-pill">OFF</span>
+        <span id="statusPill" class="pill hidden"></span>
       </div>
-      <span class="privacy-badge">100% Read-Only &amp; Privacy Safe</span>
+      <span class="privacy">Private · Read-only</span>
     </header>
 
-    <!-- Session setup -->
-    <section class="card" aria-labelledby="setupTitle">
-      <h2 class="card-title" id="setupTitle">Session Setup</h2>
+    <!-- 1. Start (free audit not started) -->
+    <section id="viewStart" class="card hidden">
+      <h2>Find what's slowing you down</h2>
+      <p class="muted">Turn it on and work like normal. After 5 hours of work, you'll see:</p>
+      <ul class="checks">
+        <li>The task you repeat most</li>
+        <li>The AI agent that can do it for you</li>
+        <li>A simple step-by-step fix</li>
+      </ul>
+      <label class="field">Your role (optional)
+        <input type="text" class="role-input" maxlength="40" placeholder="e.g. Sales, Office Manager" autocomplete="off">
+      </label>
+      <button id="startBtn" class="primary" type="button">Start my free audit</button>
+    </section>
 
+    <!-- 2. Tracking -->
+    <section id="viewTracking" class="card hidden">
       <div class="row">
         <div>
-          <div class="toggle-label">Active Shadowing</div>
-          <div class="toggle-sub" id="toggleSub">Tracking is paused</div>
+          <div class="big" id="trackTitle">Tracking</div>
+          <div class="muted small" id="trackSub">Work like normal.</div>
         </div>
-        <label class="switch" title="Turn shadowing on or off">
-          <input type="checkbox" id="enabledToggle" aria-label="Active Shadowing">
+        <label class="switch" title="Pause or resume">
+          <input type="checkbox" id="enabledToggle" aria-label="Tracking on or off">
           <span class="slider"></span>
         </label>
       </div>
 
-      <label class="field">
-        Role / Department Tag
-        <input type="text" id="roleInput" maxlength="40" placeholder="e.g. Operations, Sales, Admin" autocomplete="off">
-      </label>
-
-      <div id="gateLocked">
-        <label class="field">
-          Unlock full export — Client Access Key or work email
-          <div class="gate-row">
-            <input type="text" id="gateInput" placeholder="AUDIT-XXXX or you@company.com" autocomplete="off" spellcheck="false">
-            <button id="gateBtn" class="small primary" type="button">Unlock</button>
-          </div>
-        </label>
-        <div id="gateMsg" class="gate-msg">Live preview is free. Work email unlocks export + AI prompt. Business key unlocks team sync &amp; webhook.</div>
+      <div id="progressBox">
+        <div class="row small" style="margin-bottom:6px">
+          <span id="progressText">0 of 5 hours</span>
+          <span class="muted" id="progressLeft"></span>
+        </div>
+        <div class="progress"><div id="progressBar"></div></div>
       </div>
-
-      <div id="gateUnlocked" class="unlocked-banner hidden">
-        <span id="unlockedText">Full access unlocked</span>
-        <button id="lockBtn" class="link" type="button">Change</button>
-      </div>
-    </section>
-
-    <!-- Live mini-dashboard -->
-    <section class="card" aria-labelledby="dashTitle">
-      <h2 class="card-title" id="dashTitle">
-        Live Mini-Dashboard
-        <span id="updatedAt" style="text-transform:none;letter-spacing:0;font-weight:500"></span>
-      </h2>
 
       <div class="stats">
-        <div class="stat">
-          <div class="value" id="statHours">0.00</div>
-          <div class="label">Total Active Hours</div>
-        </div>
-        <div class="stat">
-          <div class="value" id="statTools">0</div>
-          <div class="label">Unique Tools / SaaS Domains</div>
-        </div>
-        <div class="stat wide">
-          <div class="label">Top Repeated 4-Step Loop</div>
-          <div id="statLoop"><div class="empty">No repeated loops detected yet</div></div>
-        </div>
-        <div class="stat wide">
-          <div class="row">
-            <div>
-              <div class="value" id="statSwitches">0</div>
-              <div class="label">Rapid Context Switches (&lt;30s apart)</div>
-            </div>
-          </div>
-        </div>
+        <div class="stat"><b id="statHours">0.0</b><span>Hours tracked</span></div>
+        <div class="stat"><b id="statTools">0</b><span>Tools used</span></div>
+        <div class="stat wide"><span>Task you repeat most</span><div id="statLoop" class="flow muted">Nothing repeated yet</div></div>
+        <div class="stat wide"><b id="statSwitches">0</b><span>Quick tab jumps (less than 30 seconds apart)</span></div>
       </div>
 
-      <div>
-        <div class="label" style="font-size:11px;color:var(--muted);margin-bottom:4px">Top tools by time</div>
-        <ul class="tools-list" id="topTools"><li class="empty">Nothing recorded yet</li></ul>
-      </div>
+      <label class="field" id="roleRowTracking">Role
+        <input type="text" class="role-input" maxlength="40" placeholder="e.g. Sales, Office Manager" autocomplete="off">
+      </label>
     </section>
 
-    <!-- Export & AI analysis -->
-    <section class="card" aria-labelledby="exportTitle">
-      <h2 class="card-title" id="exportTitle">Export &amp; AI Analysis</h2>
+    <!-- 3. Results ready, needs email (free) -->
+    <section id="viewReady" class="card hidden">
+      <h2>Your results are ready 🎉</h2>
+      <p class="muted">Enter your work email to see them.</p>
+      <div class="inline">
+        <input type="text" id="emailInput" placeholder="you@company.com" autocomplete="email" spellcheck="false">
+        <button id="emailBtn" class="primary small-btn" type="button">Show</button>
+      </div>
+      <div id="emailMsg" class="msg"></div>
+    </section>
 
-      <div id="lockNote" class="lock-note">🔒 Unlock above to enable export and the AI prompt.</div>
+    <!-- 4. Results -->
+    <section id="viewResults" class="card hidden">
+      <div class="row">
+        <h2 id="resultsTitle">Your results</h2>
+      </div>
+      <div id="resultsBody"></div>
 
       <div class="actions">
-        <button id="downloadBtn" class="primary" type="button" disabled>Download AI Audit JSON</button>
-        <button id="copyPromptBtn" type="button" disabled>Copy AI Analysis Prompt + Data</button>
-        <button id="syncBtn" type="button" disabled title="Business plan">Sync to Business Portal</button>
+        <button id="copyPromptBtn" type="button">Copy full AI report (paste into ChatGPT or Claude)</button>
+        <button id="downloadBtn" type="button">Download my data</button>
 
-        <details class="webhook disabled" id="webhookDetails">
-          <summary>Send to Webhook</summary>
-          <div class="body">
-            <input type="url" id="webhookInput" placeholder="https://hook.make.com/… or n8n / API URL" autocomplete="off" spellcheck="false">
-            <button id="webhookBtn" type="button" disabled>POST JSON Payload</button>
-          </div>
-        </details>
+        <div id="liteDoneBox" class="actions">
+          <p class="muted small" style="text-align:center">Your free audit is complete.</p>
+          <button class="upgrade upgrade-btn" type="button">Fix this for my whole team → Business</button>
+        </div>
 
-        <button id="portalBtn" type="button" class="hidden">Open Business Portal ↗</button>
-        <button id="upgradeBtn" type="button" class="upgrade">Upgrade to Business — team sync, portal &amp; AI agent plan ↗</button>
-
-        <button id="resetBtn" class="danger" type="button">Reset Session</button>
+        <div id="businessBox" class="actions hidden">
+          <button id="syncBtn" class="primary" type="button">Send to my Business Portal</button>
+          <button id="portalBtn" type="button">Open Business Portal ↗</button>
+          <details class="more">
+            <summary>More options</summary>
+            <div class="body">
+              <label class="field">Send data to a webhook (Make.com, n8n…)
+                <input type="url" id="webhookInput" placeholder="https://hook.make.com/…" autocomplete="off" spellcheck="false">
+              </label>
+              <button id="webhookBtn" type="button">Send</button>
+              <button id="resetBtn" class="danger" type="button">Start a new audit</button>
+            </div>
+          </details>
+        </div>
       </div>
-
-      <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </section>
 
-    <footer>
-      Records only domain names, active time and tab-switch patterns.<br>
-      No page content, paths, queries, keystrokes or passwords. Data stays on this device unless you export, sync or send it.
-    </footer>
+    <!-- Upgrade (shown while a free audit is running) -->
+    <button id="upgradeRunning" class="upgrade upgrade-btn hidden" type="button">Want this for your whole team? See Business →</button>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- Business key -->
+    <div id="keyLinkRow" class="key-row"><button id="keyLink" class="link" type="button">Have a Business key?</button></div>
+    <section id="keyBox" class="card hidden">
+      <label class="field">Business key
+        <div class="inline">
+          <input type="text" id="keyInput" placeholder="AUDIT-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false">
+          <button id="keyBtn" class="primary small-btn" type="button">Unlock</button>
+        </div>
+      </label>
+      <div id="keyMsg" class="msg"></div>
+    </section>
+    <div id="bizRow" class="key-row muted small hidden">
+      <span id="bizText">Business</span>&nbsp;·&nbsp;<button id="bizChange" class="link" type="button">Change key</button>
+    </div>
+
+    <footer>We only see website names and time spent.<br>Never what you type, read or click.</footer>
   </div>
 
+  <script src="insights.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
