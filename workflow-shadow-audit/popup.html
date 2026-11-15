@@ -18,6 +18,37 @@
     .wrap { padding: 14px; display: flex; flex-direction: column; gap: 12px; }
     .hidden { display: none !important; }
 
+    /* Audit bots */
+    .bots { background: var(--accent-soft); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .bots-head { display: flex; align-items: center; gap: 12px; }
+    .bots-title { font-weight: 700; }
+    .crew { position: relative; display: flex; gap: 3px; color: var(--accent); padding-bottom: 6px; flex: 0 0 auto; }
+    .bot { width: 24px; height: 24px; animation: bob 1.6s ease-in-out infinite; }
+    .bot:nth-child(2) { animation-delay: .25s; } .bot:nth-child(3) { animation-delay: .5s; }
+    .bot .eye { transform-origin: center 16px; animation: blink 4s infinite; }
+    .scan { position: absolute; left: 0; bottom: 0; height: 3px; width: 26px; border-radius: 3px; background: var(--accent); opacity: .5;
+      animation: scan 2.2s ease-in-out infinite alternate; }
+    .bots.sleeping .bot, .bots.sleeping .scan { animation: none; }
+    .bots.sleeping .bot { opacity: .45; }
+    .bots.sleeping .eye { transform: scaleY(.2); animation: none; }
+    .bots.sleeping .scan { display: none; }
+    @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(.15); } }
+    @keyframes scan { from { transform: translateX(0); } to { transform: translateX(54px); } }
+    @media (prefers-reduced-motion: reduce) { .bot, .bot .eye, .scan, .feed li.new { animation: none !important; } }
+    .feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
+    .feed li { display: flex; gap: 8px; align-items: baseline; background: var(--panel); border-radius: 8px; padding: 6px 9px; }
+    .feed li::before { content: ""; flex: 0 0 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translateY(-1px); }
+    .feed li.working::before { background: var(--green); }
+    .feed li.new { animation: slidein .4s ease-out; }
+    @keyframes slidein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    details.checked summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--accent); }
+    details.checked .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 8px 0; font-size: 12px; }
+    details.checked ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+    details.checked ul.checks li::before { content: "✓ "; color: var(--green); font-weight: 700; }
+    details.checked ul.nots li::before { content: "✕ "; color: var(--red); font-weight: 700; }
+    .nudge { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: #fff4e0; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; }
+
     header { display: flex; flex-direction: column; gap: 6px; }
     .title-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     h1 { margin: 0; font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
@@ -155,11 +186,33 @@
         <div class="progress"><div id="progressBar"></div></div>
       </div>
 
+      <div class="bots" id="botsBox">
+        <div class="bots-head">
+          <div class="crew" aria-hidden="true"><svg class="bot" viewBox="0 0 32 32" aria-hidden="true"><line x1="16" y1="3" x2="16" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="3" r="2" fill="currentColor"/><rect x="5" y="8" width="22" height="18" rx="6" fill="currentColor"/><rect class="eye" x="10" y="14" width="4" height="5" rx="2" fill="var(--panel)"/><rect class="eye" x="18" y="14" width="4" height="5" rx="2" fill="var(--panel)"/></svg><svg class="bot" viewBox="0 0 32 32" aria-hidden="true"><line x1="16" y1="3" x2="16" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="3" r="2" fill="currentColor"/><rect x="5" y="8" width="22" height="18" rx="6" fill="currentColor"/><rect class="eye" x="10" y="14" width="4" height="5" rx="2" fill="var(--panel)"/><rect class="eye" x="18" y="14" width="4" height="5" rx="2" fill="var(--panel)"/></svg><svg class="bot" viewBox="0 0 32 32" aria-hidden="true"><line x1="16" y1="3" x2="16" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="3" r="2" fill="currentColor"/><rect x="5" y="8" width="22" height="18" rx="6" fill="currentColor"/><rect class="eye" x="10" y="14" width="4" height="5" rx="2" fill="var(--panel)"/><rect class="eye" x="18" y="14" width="4" height="5" rx="2" fill="var(--panel)"/></svg><span class="scan"></span></div>
+          <div><div class="bots-title" id="botsTitle">Your audit bots are working</div>
+            <div class="muted small" id="botsSub">Checking as you work</div></div>
+        </div>
+        <ul class="feed" id="botFeed" aria-live="polite"></ul>
+        <details class="checked">
+          <summary>What the bots check, and what they never touch</summary>
+          <div class="cols">
+            <div><b>Checking</b><ul class="checks"><li>Which tools you use</li><li>Time in each tool</li><li>Tasks you repeat</li><li>Quick tab switches</li></ul></div>
+            <div><b>Never touched</b><ul class="nots"><li>Emails and messages</li><li>Files on your computer</li><li>Passwords or typing</li><li>What's on the page</li></ul></div>
+          </div>
+          <p class="muted small">Read-only: nothing on your computer is changed. To remove it, right-click the icon and choose <b>Remove from Chrome</b>. Its data on this computer is deleted with it.</p>
+        </details>
+      </div>
+
+      <div id="sendNudge" class="nudge hidden">
+        <div><b>Your company is waiting for your audit.</b><br><span class="muted small">Send it when you're ready. You can keep tracking after.</span></div>
+        <button id="nudgeSendBtn" class="primary small-btn" type="button">Send</button>
+      </div>
+
+      <p id="teamNote" class="muted small hidden">Your company sees the tools you use, time and repeated tasks, by role. Never what you type, read or send.</p>
+
       <div class="stats">
         <div class="stat"><b id="statHours">0.0</b><span>Hours tracked</span></div>
         <div class="stat"><b id="statTools">0</b><span>Tools used</span></div>
-        <div class="stat wide"><span>Task you repeat most</span><div id="statLoop" class="flow muted">Nothing repeated yet</div></div>
-        <div class="stat wide"><b id="statSwitches">0</b><span>Quick tab switches</span></div>
       </div>
 
       <label class="field" id="roleRowTracking">Role
@@ -244,7 +297,7 @@
       <span id="bizText">Team Audit</span>&nbsp;·&nbsp;<button id="bizChange" class="link" type="button">Change key</button>
     </div>
 
-    <footer>We only see website names and time spent.<br>Never what you type, read or click.</footer>
+    <footer>Read-only. We only see website names and time spent, never what you type, read or click.<br>Nothing on your computer is changed. Remove it any time from Chrome.</footer>
   </div>
 
   <script src="industries.js"></script>

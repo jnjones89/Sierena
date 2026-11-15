@@ -138,6 +138,14 @@ if (isset($_GET['view'])) {
     </section>
 
     <section class="card"><h2>Business profile</h2><?php render_profile_readonly($profile); ?></section>
+    <?php $ts = tools_summary(load_tools($lid), $aggregate); ?>
+    <section class="card"><h2>Software they pay for</h2>
+      <?php if (!$ts['rows']): ?><p class="muted">Not listed yet.</p><?php else: ?>
+        <p><b><?= h(money($ts['monthly'])) ?></b>/month · <b><?= h(money($ts['unseen_cost'])) ?></b> on tools not seen in the audit</p>
+        <div class="table-wrap"><table><tr><th>Tool</th><th>Per month</th><th>Seats</th><th>In the audit</th></tr>
+        <?php foreach ($ts['rows'] as $t): ?><tr><td><?= h($t['name']) ?></td><td><?= h(money((float) $t['cost'])) ?></td><td><?= (int) $t['seats'] ?></td><td><?= $t['minutes'] !== null ? h(fmt_hours((float) $t['minutes'])) . ' hrs' : ($t['desktop'] ? 'Desktop app' : 'Not seen') ?></td></tr><?php endforeach; ?>
+        </table></div>
+      <?php endif; ?></section>
     <section class="card"><h2>Back-Office Check<?= $profile['industry'] ? ' · ' . h(industry_label($profile['industry'])) : '' ?></h2>
       <?php render_checklist_summary(checklist_summary($profile['industry'] ?: 'other', load_checklist($lid))); ?></section>
     <section class="card"><h2>Team telemetry</h2><?php render_telemetry($aggregate, $audits, false); ?><?php render_progress(progress_by_month($audits)); ?></section>
@@ -148,7 +156,7 @@ if (isset($_GET['view'])) {
         </table></div>
       <?php endif; ?>
     </section>
-    <section class="card"><h2>Report prompt</h2><?php render_prompt_box(build_business_prompt($license, $profile, $aggregate, load_checklist($lid))); ?></section>
+    <section class="card"><h2>Report prompt</h2><?php render_prompt_box(build_business_prompt($license, $profile, $aggregate, load_checklist($lid), load_tools($lid))); ?></section>
     <?php
     render_footer();
     exit;

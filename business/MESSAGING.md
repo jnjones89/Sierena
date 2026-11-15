@@ -12,7 +12,9 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **Starter / Team / Company** | Team Audit sizes: up to 5 / 15 / 50 people | seats tier, bundle |
 | **team key** | The `AUDIT-XXXX-XXXX-XXXX-XXXX` code a buyer shares with their team | license key, Business key, access key |
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
-| **business profile** | Company, social media, tools, team, goals | intake form |
+| **business profile** | Company, social media, team, goals | intake form |
+| **Your tools** | The software list with monthly cost and seats, matched to the audit (Team Audit) | software inventory, SaaS stack |
+| **audit bots** | The animated crew and live feed in the extension while it tracks | AI scanning, monitoring |
 | **Back-Office Check** | Industry questions about processes and SOPs, follow-up, contracts, compliance, data security. In the portal it shows up as **quick questions**, one at a time, answered Yes / Sometimes / No / Not sure | compliance audit, legal review |
 | **instant AI report** | Written by AI in the portal in 1–2 minutes | gap analysis, AI Gap Map |
 | **final plan** | Reviewed and published by our team, with the SOPs to write first | full report, custom report |
@@ -40,8 +42,13 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - One main button per screen. Details (tables, numbers) go on the Numbers page.
 - Say "tab switches", not "context switches"; "tasks you repeat", not "workflow loops"; "tools", not "domains".
 
-## Privacy line (always the same)
-*We only see website names and time spent. Never what you type, read or click.*
+## Privacy and trust lines (always the same)
+- *We only see website names and time spent. Never what you type, read or click.*
+- *Read-only: nothing on your computer is changed.*
+- *Never touched: emails and messages, files on your computer, passwords, or anything you type.*
+- *Easy to remove: right-click the icon and choose Remove from Chrome. Its data on your computer goes with it.*
+- For teammates: *Your company sees the tools you use, time and repeated tasks, by role. Never what you type, read or send.*
+- The audit bots' live feed only shows things the extension really saw. Never show "scanning your drive", "reading your email" or anything it doesn't do.
 
 ## Compliance line (always the same)
 *Compliance checks are general guidance for your industry, not legal advice. Confirm the requirements that apply to you with your attorney or compliance advisor.*

@@ -17,6 +17,7 @@ unset($_SESSION['flash']);
 const PORTAL_PAGES = [
     'home'      => 'Home',
     'business'  => 'Your business',
+    'tools'     => 'Your tools',
     'questions' => 'Questions',
     'team'      => 'Your team',
     'report'    => 'Report',
@@ -109,6 +110,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('questions', '', 'ok', ['q' => $q + 1]);
     }
 
+    if ($action === 'add_tool') {
+        $tool = clean_tool_input($_POST);
+        if ($tool === null) {
+            go('tools', 'Please enter the tool name.', 'error');
+        }
+        $tools = load_tools($lid);
+        $tools[] = $tool;
+        save_tools($lid, $tools);
+        go('tools', 'Added ' . $tool['name'] . '.');
+    }
+
+    if ($action === 'remove_tool') {
+        $tools = load_tools($lid);
+        $i = (int) ($_POST['index'] ?? -1);
+        if (isset($tools[$i])) {
+            $name = $tools[$i]['name'];
+            array_splice($tools, $i, 1);
+            save_tools($lid, $tools);
+            go('tools', 'Removed ' . $name . '.');
+        }
+        go('tools');
+    }
+
     if ($action === 'upload_audit') {
         $file = $_FILES['audit_file'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || $file['size'] > 2_000_000) {
@@ -142,7 +166,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         ignore_user_abort(true);
         session_write_close();
         try {
-            $prompt = build_business_prompt($license, load_profile($lid), aggregate_audits(list_audits($lid)), load_checklist($lid));
+            $prompt = build_business_prompt($license, load_profile($lid), aggregate_audits(list_audits($lid)), load_checklist($lid), load_tools($lid));
             $result = generate_ai_report($prompt);
             save_report($lid, 'ai', $result['text'], $result['model']);
         } catch (Throwable $e) {
@@ -210,6 +234,8 @@ $finalPlan  = latest_report($lid, 'final');
 $monitoring = license_monitoring($license);
 $monCfg     = (array) cfg('monitoring');
 $company    = $profile['company'] ?: ($license['company'] ?: 'your business');
+$tools      = load_tools($lid);
+$toolsSum   = tools_summary($tools, aggregate_audits($audits));
 $dis        = $active ? '' : ' disabled';
 
 /* ----------------------------- Layout ---------------------------- */
@@ -257,6 +283,11 @@ if ($page === 'home'):
             'page'  => 'business', 'cta' => $businessDone ? 'Edit' : 'Start',
         ],
         [
+            'done'  => count($tools) > 0, 'title' => 'List the software you pay for',
+            'text'  => count($tools) > 0 ? count($tools) . ' tools · ' . money($toolsSum['monthly']) . ' a month.' : 'Name and monthly cost. We show which ones your team actually uses. About 3 minutes.',
+            'page'  => 'tools', 'cta' => count($tools) > 0 ? 'Edit' : 'Start',
+        ],
+        [
             'done'  => $teamDone, 'title' => 'Get your team connected',
             'text'  => count($devices) . ' of ' . (int) $license['seats'] . ' people connected · ' . count($audits) . ' audit' . (count($audits) === 1 ? '' : 's') . ' sent in.',
             'page'  => 'team', 'cta' => $teamDone ? 'View team' : 'Invite your team',
@@ -275,6 +306,12 @@ if ($page === 'home'):
 ?>
   <h1>Hi, <?= h($company) ?></h1>
   <p class="lead"><?= h(plan_name($license)) ?> · <?= $monitoring ? 'Results Tracking is on' : 'open until ' . h(format_date($license['access_until'])) ?></p>
+  <?php
+    $daysLeft = $license['access_until'] ? (int) ceil((strtotime((string) $license['access_until']) - time()) / 86400) : 0;
+    if ($active && !$monitoring && $daysLeft <= 7):
+  ?>
+    <div class="note">Your audit ends in <?= max(1, $daysLeft) ?> day<?= $daysLeft === 1 ? '' : 's' ?>. Ask your team to send in their audits, and get your report before then.</div>
+  <?php endif; ?>
 
   <?php foreach ($steps as $i => $s): ?>
     <section class="card step<?= $s['done'] ? ' done' : '' ?>">
@@ -338,7 +375,7 @@ elseif ($page === 'business'):
     <section class="card">
       <details<?= ($profile['bottlenecks'] . $profile['goals']) !== '' ? ' open' : '' ?>>
         <summary>More about how you work (optional)</summary>
-        <?php foreach (['bottlenecks', 'goals', 'current_tools', 'departments', 'lead_sources'] as $k) echo field_html($k, $profile, $dis); ?>
+        <?php foreach (['bottlenecks', 'goals', 'departments', 'lead_sources'] as $k) echo field_html($k, $profile, $dis); ?>
         <div class="row">
           <?= field_html('software_budget', $profile, $dis) ?>
           <?= field_html('hourly_cost', $profile, $dis) ?>
@@ -433,6 +470,81 @@ elseif ($page === 'questions'):
 <?php
     endif;
 
+/* ------------------------------ Tools ---------------------------- */
+elseif ($page === 'tools'):
+?>
+  <h1>Your tools</h1>
+  <p class="lead">List the software you pay for. We match it to your team's audit, so your report shows real savings, not guesses.</p>
+
+  <?php if ($tools): ?>
+    <div class="stats">
+      <div class="stat"><b><?= h(money($toolsSum['monthly'])) ?></b><span>Total per month</span></div>
+      <div class="stat"><b><?= h(money($toolsSum['monthly'] * 12)) ?></b><span>Total per year</span></div>
+      <div class="stat"><b><?= h(money($toolsSum['unseen_cost'])) ?></b><span>Paid for, not seen in the audit</span></div>
+    </div>
+    <section class="card">
+      <div class="table-wrap"><table>
+        <tr><th>Tool</th><th>Per month</th><th>Seats</th><th>In the audit</th><th></th></tr>
+        <?php foreach ($toolsSum['rows'] as $t): ?>
+          <tr>
+            <td><b><?= h($t['name']) ?></b><?= $t['note'] !== '' ? '<br><span class="muted small">' . h($t['note']) . '</span>' : '' ?></td>
+            <td><?= h(money((float) $t['cost'])) ?></td>
+            <td><?= $t['seats'] ? (int) $t['seats'] : '<span class="muted">—</span>' ?></td>
+            <td><?= $t['minutes'] === null
+                ? ($t['desktop'] ? '<span class="badge">Desktop app</span>' : ($audits ? '<span class="badge red">Not seen</span>' : '<span class="muted small">After your team sends audits</span>'))
+                : '<span class="badge green">' . h(fmt_hours((float) $t['minutes'])) . ' hrs</span>' ?></td>
+            <td><?php if ($active): ?><form class="inline" method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="remove_tool"><input type="hidden" name="index" value="<?= (int) $t['index'] ?>"><button class="btn small" type="submit">Remove</button></form><?php endif; ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </table></div>
+      <?php if ($audits && $toolsSum['unseen_cost'] > 0): ?>
+        <p class="note">"Not seen" means no one opened it in a browser during the audit. It may be a desktop app, or it may be something you no longer need. Your report will point these out.</p>
+      <?php endif; ?>
+    </section>
+  <?php endif; ?>
+
+  <?php if ($active && $toolsSum['suggestions']): ?>
+    <section class="card">
+      <h2>Found in your team's audit</h2>
+      <p class="muted">Your team used these. Add the ones you pay for.</p>
+      <div class="table-wrap"><table>
+        <tr><th>Tool</th><th>Time</th><th>Per month</th><th>Seats</th><th></th></tr>
+        <?php foreach ($toolsSum['suggestions'] as $i => $sg): ?>
+          <tr>
+            <td><b><?= h($sg['name']) ?></b></td>
+            <td><?= h(fmt_hours((float) $sg['minutes'])) ?> hrs</td>
+            <td colspan="3">
+              <form class="inline-form" method="post" action="portal.php">
+                <?= csrf_field() ?><input type="hidden" name="action" value="add_tool"><input type="hidden" name="name" value="<?= h($sg['name']) ?>">
+                <input type="text" name="cost" inputmode="decimal" placeholder="$ / month" aria-label="Monthly cost for <?= h($sg['name']) ?>">
+                <input type="text" name="seats" inputmode="numeric" placeholder="Seats" aria-label="Seats for <?= h($sg['name']) ?>">
+                <button class="btn small" type="submit">Add</button>
+              </form>
+            </td>
+          </tr>
+        <?php endforeach; ?>
+      </table></div>
+    </section>
+  <?php endif; ?>
+
+  <?php if ($active): ?>
+    <section class="card">
+      <h2>Add a tool</h2>
+      <p class="muted small">Include desktop apps and phone systems too. The audit only sees websites, so this is how they get counted.</p>
+      <form method="post" action="portal.php">
+        <?= csrf_field() ?><input type="hidden" name="action" value="add_tool">
+        <div class="row">
+          <label>Tool name<input type="text" name="name" required maxlength="80" placeholder="e.g. QuickBooks"></label>
+          <label>Cost per month<input type="text" name="cost" inputmode="decimal" placeholder="e.g. $90"></label>
+          <label>Seats<input type="text" name="seats" inputmode="numeric" placeholder="e.g. 3"></label>
+          <label>Note (optional)<input type="text" name="note" maxlength="120" placeholder="e.g. desktop app"></label>
+        </div>
+        <button class="btn primary" type="submit">Add tool</button>
+      </form>
+    </section>
+  <?php endif; ?>
+
+<?php
 /* ------------------------------ Team ----------------------------- */
 elseif ($page === 'team'):
     $invite = "Hi team! We're running a quick audit to find work we can automate. It's private: it only sees website names and time spent, never what you type.\n\n"
@@ -542,7 +654,7 @@ elseif ($page === 'report'):
 
   <details>
     <summary>Copy the report prompt for ChatGPT or Claude</summary>
-    <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist)); ?>
+    <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist, $tools)); ?>
   </details>
 
 <?php
@@ -555,6 +667,14 @@ else:
     <h2>Back office · <?= h(industry_label($industry)) ?></h2>
     <?php render_checklist_summary($summary); ?>
     <p class="disclaimer">Compliance items are general guidance for your industry, not legal advice.</p>
+  </section>
+  <section class="card">
+    <h2>Software spend</h2>
+    <?php if ($tools): ?>
+      <p><b><?= h(money($toolsSum['monthly'])) ?></b> a month on <?= count($tools) ?> tools · <b><?= h(money($toolsSum['unseen_cost'])) ?></b> on tools not seen in the audit. <a href="<?= h(portal_url('tools')) ?>">See your tools</a></p>
+    <?php else: ?>
+      <p class="muted"><a href="<?= h(portal_url('tools')) ?>">List your tools</a> to see your software spend here.</p>
+    <?php endif; ?>
   </section>
   <section class="card">
     <h2>What your team's browsers show</h2>

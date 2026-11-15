@@ -51,6 +51,14 @@ endif;
     </div></div>
   </section>
 
-  <p class="note">We only see website names and time spent. Never what you type, read or click.</p>
+  <section class="card">
+    <h2>What it sees, and what it doesn't</h2>
+    <ul class="steps">
+      <li><b>Read-only.</b> It only notes which websites you use and for how long. Nothing on your computer is changed.</li>
+      <li><b>Never touched:</b> your emails and messages, files on your computer, passwords, or anything you type.</li>
+      <li><b>What <?= h($company) ?> sees:</b> the tools the team uses, time spent and repeated tasks, by role.</li>
+      <li><b>Easy to remove:</b> right-click the icon and choose <b>Remove from Chrome</b>. Its data on your computer goes with it.</li>
+    </ul>
+  </section>
 <?php
 render_footer();

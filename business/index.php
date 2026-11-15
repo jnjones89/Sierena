@@ -19,6 +19,11 @@ render_header('Team Audit');
 <h1>Find the bottlenecks across your whole team</h1>
 <p class="lead">Everyone runs the private, read-only audit for a few days. You get one report: your biggest bottlenecks,
 the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them.</p>
+<div class="trust">
+  <span><b>Read-only.</b> Nothing on your computers is changed.</span>
+  <span><b>Never sees</b> emails, files, passwords or typing.</span>
+  <span><b>Remove it any time</b> in one click.</span>
+</div>
 
 <?php if ($canceled): ?>
   <div class="alert error">Checkout was canceled. No charge was made.</div>

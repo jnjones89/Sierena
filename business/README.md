@@ -13,7 +13,9 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
    ──► each teammate pastes the key in the extension (one seat per computer, up to the plan's limit);
        the "Your team" page shows who's connected and who has sent in their audit
    ──► "Send to my Business Portal" ──► portal.php
-         • business profile (industry, social media, tools, goals)
+         • business profile (industry, social media, goals)
+         • Your tools: software they pay for, with monthly cost and seats, matched to what the audit saw
+           (shows "Not seen" for paid tools nobody opened, so the report can show real savings)
          • Back-Office Check: processes & SOPs, follow-up, contracts, compliance and data security,
            with extra checks per industry (insurance, lending, business funding, credit repair, real estate, healthcare,
            legal, home services, e-commerce, agencies) and how each gap can be automated
@@ -89,4 +91,4 @@ Industry lists live in `includes/industries.php` and `../workflow-shadow-audit/i
 - `index.php` pricing · `checkout.php` one-time audit · `success.php` · `monitor.php` Results Tracking · `webhook.php` · `billing.php`
 - `portal.php` customer portal (Home steps · Your business · Questions · Your team · Report · Numbers) · `join.php` team invite page · `admin.php` your dashboard
 - `api/validate.php`, `api/sync.php`, `api/lead.php` — called by the extension
-- `includes/` library + config, `vendor/` Composer packages (both blocked from the web)
+- `includes/` library + config (`industries.php` questions per industry, `tools.php` tool names, generated from the extension's `insights.js`), `vendor/` Composer packages (both blocked from the web)

@@ -427,6 +427,7 @@ function buildInsights(metrics) {
     main,
     extras,
     focusNames: [...new Set(focusTools.map((t) => t.name))],
+    topTools: all.filter((t) => t.seconds > 0).slice(0, 5).map((t) => ({ name: t.name, seconds: t.seconds })),
     focusSeconds,
     totalSeconds,
     quickSwitches: (metrics && metrics.rapidContextSwitches) || 0,

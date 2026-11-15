@@ -7,6 +7,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/industries.php';
+require_once __DIR__ . '/tools.php';
 
 /* ------------------------------------------------------------------ */
 /* Configuration                                                       */
@@ -934,11 +935,119 @@ function save_checklist(int $licenseId, string $industry, array $input): array
 }
 
 /* ------------------------------------------------------------------ */
+/* Software the customer pays for (Team Audit)                         */
+/* ------------------------------------------------------------------ */
+
+/** @return list<array{name:string,cost:float,seats:int,note:string}> */
+function load_tools(int $licenseId): array
+{
+    $tools = profile_data($licenseId)['tools'] ?? [];
+    return is_array($tools) ? array_values($tools) : [];
+}
+
+function save_tools(int $licenseId, array $tools): void
+{
+    $data = profile_data($licenseId);
+    $data['tools'] = array_values(array_slice($tools, 0, 100));
+    write_profile_data($licenseId, $data);
+}
+
+function clean_tool_input(array $in): ?array
+{
+    $name = trim(mb_substr((string) ($in['name'] ?? ''), 0, 80));
+    if ($name === '') {
+        return null;
+    }
+    $cost = (float) preg_replace('/[^0-9.]/', '', (string) ($in['cost'] ?? ''));
+    return [
+        'name'  => $name,
+        'cost'  => round(max(0, min($cost, 1000000)), 2),
+        'seats' => max(0, min((int) ($in['seats'] ?? 0), 100000)),
+        'note'  => trim(mb_substr((string) ($in['note'] ?? ''), 0, 120)),
+    ];
+}
+
+/** Minutes per friendly tool name across all audits. */
+function tool_minutes_seen(array $aggregate): array
+{
+    $seen = [];
+    foreach ($aggregate['softwareUsage'] ?? [] as $u) {
+        $info = tool_info((string) $u['domain']);
+        if ($info['category'] === 'search') {
+            continue;
+        }
+        $key = strtolower($info['name']);
+        $seen[$key] ??= ['name' => $info['name'], 'minutes' => 0.0, 'category' => $info['category']];
+        $seen[$key]['minutes'] += (float) $u['activeMinutes'];
+    }
+    uasort($seen, fn($a, $b) => $b['minutes'] <=> $a['minutes']);
+    return $seen;
+}
+
+/** Match each paid tool to what the audits saw. */
+function tools_summary(array $tools, array $aggregate): array
+{
+    $seen = tool_minutes_seen($aggregate);
+    $rows = [];
+    $total = 0.0;
+    $unseenCost = 0.0;
+    foreach ($tools as $i => $t) {
+        $needle = strtolower($t['name']);
+        $minutes = null;
+        foreach ($seen as $key => $s) {
+            if ($key === $needle || str_contains($key, $needle) || str_contains($needle, $key)) {
+                $minutes = ($minutes ?? 0) + $s['minutes'];
+            }
+        }
+        $desktop = (bool) preg_match('/desktop|installed|on.?prem|phone system/i', $t['note'] . ' ' . $t['name']);
+        $total += $t['cost'];
+        if ($minutes === null && !$desktop && $t['cost'] > 0) {
+            $unseenCost += $t['cost'];
+        }
+        $rows[] = $t + ['index' => $i, 'minutes' => $minutes, 'desktop' => $desktop];
+    }
+    $listed = array_map(fn($t) => strtolower($t['name']), $tools);
+    $suggest = [];
+    foreach ($seen as $key => $s) {
+        $isListed = false;
+        foreach ($listed as $l) {
+            if ($l === $key || str_contains($key, $l) || str_contains($l, $key)) {
+                $isListed = true;
+                break;
+            }
+        }
+        if (!$isListed && $s['minutes'] >= 1) {
+            $suggest[] = $s;
+        }
+    }
+    return [
+        'rows'        => $rows,
+        'monthly'     => round($total, 2),
+        'unseen_cost' => round($unseenCost, 2),
+        'suggestions' => array_slice($suggest, 0, 12),
+    ];
+}
+
+function money(float $n): string
+{
+    return '$' . number_format($n, $n == floor($n) ? 0 : 2);
+}
+
+/* ------------------------------------------------------------------ */
 /* Report prompt (Team Audit)                                         */
 /* ------------------------------------------------------------------ */
 
-function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = []): string
+function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = [], array $tools = []): string
 {
+    $toolLines = [];
+    foreach (tools_summary($tools, $aggregate)['rows'] as $t) {
+        $toolLines[] = '- ' . $t['name'] . ': ' . money((float) $t['cost']) . '/month'
+            . ($t['seats'] ? ', ' . $t['seats'] . ' seats' : '')
+            . ($t['note'] !== '' ? ' (' . $t['note'] . ')' : '')
+            . ' -> ' . ($t['minutes'] !== null ? 'seen in the audit: ' . round($t['minutes'] / 60, 1) . ' hours'
+                : ($t['desktop'] ? 'desktop app (the browser audit cannot see it)' : 'not seen in the browser audit'));
+    }
+    $toolText = $toolLines ? implode("\n", $toolLines) : '- (The owner has not listed their software yet. Use the telemetry and estimates.)';
     $labels = profile_fields();
     $profileLines = [];
     foreach ($profile as $key => $val) {
@@ -1000,7 +1109,9 @@ From the Back-Office Check: the biggest gaps in processes, follow-up, contracts,
 most serious first (compliance and contracts before the rest). For each: why it matters for a {$industry}
 business and how it can be automated. Then list the 3–5 SOPs to write first.
 ## 7. Software you may not need
-Overlapping or barely used tools and the likely monthly savings (estimates).
+Use the owner's real prices from SOFTWARE YOU PAY FOR. Flag tools that overlap, and tools that cost money but
+were barely used or not seen in the audit. A tool not seen may be a desktop app (the audit only sees websites),
+so say "check whether this is still used" rather than "cancel it". Give the possible monthly and yearly savings.
 ## 8. Your next 30 days
 Week 1 to Week 4, one or two actions each.
 
@@ -1009,6 +1120,9 @@ Week 1 to Week 4, one or two actions each.
 
 ## BACK-OFFICE CHECK
 {$checkText}
+
+## SOFTWARE YOU PAY FOR
+{$toolText}
 
 ## TEAM TELEMETRY (JSON)
 ```json

@@ -50,8 +50,6 @@ const el = {
   progressBar: $('progressBar'),
   statHours: $('statHours'),
   statTools: $('statTools'),
-  statLoop: $('statLoop'),
-  statSwitches: $('statSwitches'),
   roleRowTracking: $('roleRowTracking'),
   roleInputs: Array.from(document.querySelectorAll('.role-input')),
   industrySelects: Array.from(document.querySelectorAll('.industry-select')),
@@ -73,6 +71,13 @@ const el = {
   upgradeRunning: $('upgradeRunning'),
   upgradeBtns: Array.from(document.querySelectorAll('.upgrade-btn')),
   toast: $('toast'),
+  botsBox: $('botsBox'),
+  botsTitle: $('botsTitle'),
+  botsSub: $('botsSub'),
+  botFeed: $('botFeed'),
+  sendNudge: $('sendNudge'),
+  nudgeSendBtn: $('nudgeSendBtn'),
+  teamNote: $('teamNote'),
   keyLinkRow: $('keyLinkRow'),
   keyLink: $('keyLink'),
   keyBox: $('keyBox'),
@@ -92,6 +97,9 @@ let resetConfirmTimer = null;
 let toastTimer = null;
 let roleSaveTimer = null;
 let lastResultsKey = '';
+let lastFeedKey = '';
+const NUDGE_AFTER_SECONDS = 4 * 60 * 60;          // remind team members to send after 4 tracked hours
+const NUDGE_AGAIN_MS = 3 * 24 * 60 * 60 * 1000;    // ...and again 3 days after their last send
 
 /* ------------------------------------------------------------------ */
 /* Utilities                                                           */
@@ -553,7 +561,10 @@ async function handleSync() {
   try {
     const result = await postJson('/api/sync.php', { key: profile.access.value, deviceId: await getDeviceId(), payload });
     if (result.ok) {
+      profile.lastSyncAt = new Date().toISOString();
+      await saveProfile();
       showToast('Sent to your Business Portal.', 'ok');
+      render();
     } else {
       showToast(result.error || "Couldn't send. Try again.", 'error');
       if (/not active|seats/i.test(result.error || '')) await revalidateBusinessKey(true);
@@ -672,20 +683,69 @@ function textNode(tag, text, className) {
   return n;
 }
 
+function duration(seconds) {
+  if (seconds < 60) return 'under a minute';
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return mins + ' min';
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h + ' h' + (m ? ' ' + m + ' min' : '');
+}
+
+/** The bots' live feed: only things the extension really saw. */
+function buildFeed(insight, tracking, enabled, business) {
+  const items = [];
+  if (!enabled) {
+    items.push({ text: 'Tracking is off. Turn it on to wake the bots.' });
+    return items;
+  }
+  if (!tracking) {
+    items.push({ text: status.idleState && status.idleState !== 'active' ? "Paused while you're away." : 'Paused while Chrome is in the background.' });
+  }
+  if (!insight) {
+    items.push({ text: 'Waiting for you to open your first work tool…', working: tracking });
+    return items;
+  }
+  if (tracking) {
+    items.push({
+      text: business && insight.main ? `Best match so far: ${insight.main.agent}` : 'Matching your tasks to AI agents…',
+      working: true
+    });
+  }
+  if (insight.loop) {
+    items.push({ text: `Pattern spotted: ${insight.loop.names.join(' → ')} (${insight.loop.count} times)` });
+  }
+  if (insight.quickSwitches > 0) {
+    items.push({ text: `${insight.quickSwitches} quick tab switches so far` });
+  }
+  insight.topTools.slice(0, 3).forEach((t) => items.push({ text: `Noticed ${t.name}: ${duration(t.seconds)}` }));
+  return items.slice(0, 5);
+}
+
+function renderBots(insight, business) {
+  const tracking = !!status.tracking;
+  el.botsBox.classList.toggle('sleeping', !tracking);
+  el.botsTitle.textContent = tracking ? 'Your audit bots are working' : status.enabled ? 'Your audit bots are resting' : 'Your audit bots are off';
+  el.botsSub.textContent = tracking ? 'Checking as you work · read-only' : 'Nothing is being checked right now';
+
+  const items = buildFeed(insight, tracking, !!status.enabled, business);
+  const key = JSON.stringify(items);
+  if (key === lastFeedKey) return;
+  const old = new Set(Array.from(el.botFeed.children).map((li) => li.textContent));
+  lastFeedKey = key;
+  el.botFeed.textContent = '';
+  items.forEach((item) => {
+    const li = document.createElement('li');
+    li.textContent = item.text;
+    if (item.working) li.classList.add('working');
+    if (old.size && !old.has(item.text)) li.classList.add('new');
+    el.botFeed.appendChild(li);
+  });
+}
+
 function renderStats(insight, totalSeconds) {
   el.statHours.textContent = hours(totalSeconds);
   el.statTools.textContent = String(insight ? insight.toolCount : 0);
-  el.statSwitches.textContent = String(insight ? insight.quickSwitches : 0);
-  el.statLoop.textContent = '';
-  if (insight && insight.loop) {
-    const flow = flowNode(insight.loop.names);
-    flow.appendChild(textNode('span', `  ·  ${insight.loop.count} times`, 'muted'));
-    el.statLoop.className = '';
-    el.statLoop.appendChild(flow);
-  } else {
-    el.statLoop.className = 'flow muted';
-    el.statLoop.textContent = 'Nothing repeated yet';
-  }
 }
 
 function renderResults(insight) {
@@ -822,6 +882,12 @@ function render() {
   }
 
   renderStats(insight, totalSeconds);
+  renderBots(insight, business);
+
+  // Team members: what the company sees, and a reminder to send.
+  show(el.teamNote, business);
+  const lastSync = profile.lastSyncAt ? Date.parse(profile.lastSyncAt) : 0;
+  show(el.sendNudge, business && totalSeconds >= NUDGE_AFTER_SECONDS && (!lastSync || Date.now() - lastSync > NUDGE_AGAIN_MS));
 
   // Results
   el.resultsTitle.textContent = business ? 'Your results so far' : 'Your results';
@@ -886,6 +952,7 @@ async function init() {
   el.copyPromptBtn.addEventListener('click', handleCopyPrompt);
   el.downloadBtn.addEventListener('click', handleDownload);
   el.syncBtn.addEventListener('click', handleSync);
+  el.nudgeSendBtn.addEventListener('click', handleSync);
   el.portalBtn.addEventListener('click', () => {
     openTab((profile.access && profile.access.portalUrl) || BUSINESS_BASE_URL + '/portal.php');
   });
