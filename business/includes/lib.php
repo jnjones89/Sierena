@@ -82,6 +82,7 @@ function ensure_schema(PDO $pdo): void
         $pdo->query('SELECT monitor_status FROM licenses LIMIT 1');
         $pdo->query('SELECT 1 FROM reports LIMIT 1');
         $pdo->query('SELECT device_id FROM audits LIMIT 1');
+        $pdo->query('SELECT 1 FROM ghl_log LIMIT 1');
         return; // schema is current
     } catch (PDOException $e) {
         // create / upgrade below
@@ -178,6 +179,22 @@ function ensure_schema(PDO $pdo): void
         role_tag VARCHAR(80) NOT NULL DEFAULT '',
         source VARCHAR(40) NOT NULL DEFAULT '',
         created_at VARCHAR(32) NOT NULL
+    )$suffix");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ghl_log (
+        id $id,
+        destination VARCHAR(40) NOT NULL,
+        event VARCHAR(60) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        ok INT NOT NULL DEFAULT 0,
+        detail VARCHAR(500) NOT NULL DEFAULT '',
+        created_at VARCHAR(32) NOT NULL
+    )$suffix");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS kv (
+        k VARCHAR(100) NOT NULL PRIMARY KEY,
+        v $text NOT NULL,
+        updated_at INT NOT NULL
     )$suffix");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS rate_hits (
@@ -1248,4 +1265,229 @@ document.querySelectorAll('[data-copy]').forEach(function (btn) {
 </body>
 </html>
 HTML;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* GoHighLevel: send events so GHL workflows can follow up             */
+/* ------------------------------------------------------------------ */
+/*
+ * Each event creates/updates the contact in GHL, fills in custom fields and
+ * adds tags. Build GHL workflows with the trigger "Contact Tag added".
+ *
+ * Destinations (config 'ghl'): each has its own sub-account (location) and
+ * Private Integration token. 'events' => 'all' or a list of event names.
+ * Example: Sirena Flow gets everything; ALJA gets only build-ready events.
+ *
+ * GHL failures never break the customer's flow — they are logged and shown in admin.php.
+ */
+
+const GHL_EVENTS = [
+    'free_audit'                => ['swa-free-audit'],
+    'team_audit_purchased'      => ['swa-team-audit-purchased'],
+    'profile_updated'           => [],
+    'first_audit_received'      => ['swa-first-audit-received'],
+    'instant_report_ready'      => ['swa-instant-report-ready'],
+    'final_plan_sent'           => ['swa-final-plan-sent'],
+    'results_tracking_on'       => ['swa-results-tracking-on'],
+    'results_tracking_canceled' => ['swa-results-tracking-canceled'],
+];
+
+/** Our field key => [name shown in GHL, data type]. GHL merge tag: {{contact.<key>}}. */
+const GHL_FIELDS = [
+    'swa_plan'              => ['SWA Plan', 'TEXT'],
+    'swa_industry'          => ['SWA Industry', 'TEXT'],
+    'swa_role'              => ['SWA Role', 'TEXT'],
+    'swa_seats'             => ['SWA Seats', 'NUMERICAL'],
+    'swa_audit_ends'        => ['SWA Audit Ends', 'DATE'],
+    'swa_portal_link'       => ['SWA Portal Link', 'TEXT'],
+    'swa_bottleneck'        => ['SWA Bottleneck', 'TEXT'],
+    'swa_repeated_task'     => ['SWA Repeated Task', 'LARGE_TEXT'],
+    'swa_recommended_agent' => ['SWA Recommended Agent', 'TEXT'],
+    'swa_agent_does'        => ['SWA Agent Does', 'LARGE_TEXT'],
+    'swa_audits_received'   => ['SWA Audits Received', 'NUMERICAL'],
+    'swa_backoffice_score'  => ['SWA Back Office Score', 'NUMERICAL'],
+];
+
+function ghl_destinations(): array
+{
+    $out = [];
+    foreach ((array) cfg_opt('ghl', []) as $name => $d) {
+        if (!empty($d['api_token']) && !empty($d['location_id']) && !str_contains((string) $d['api_token'], 'REPLACE')) {
+            $out[(string) $name] = $d;
+        }
+    }
+    return $out;
+}
+
+function ghl_request(array $dest, string $method, string $path, ?array $body = null): array
+{
+    $base = rtrim((string) cfg_opt('ghl_base_url', 'https://services.leadconnectorhq.com'), '/');
+    $ch = curl_init($base . $path);
+    $headers = [
+        'Authorization: Bearer ' . $dest['api_token'],
+        'Version: 2021-07-28',
+        'Accept: application/json',
+    ];
+    if ($body !== null) {
+        $headers[] = 'Content-Type: application/json';
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST  => $method,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+    $raw  = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    if ($raw === false) {
+        throw new RuntimeException('Could not reach GHL: ' . $err);
+    }
+    $data = json_decode((string) $raw, true);
+    if ($code >= 400) {
+        $msg = is_array($data) ? (string) ($data['message'] ?? json_encode($data)) : substr((string) $raw, 0, 200);
+        throw new RuntimeException("GHL HTTP $code: " . (is_array($msg) ? json_encode($msg) : $msg));
+    }
+    return is_array($data) ? $data : [];
+}
+
+/** Map our field keys to this sub-account's custom field ids (cached for a day). */
+function ghl_field_ids(array $dest, bool $refresh = false): array
+{
+    $cacheKey = 'ghl_fields_' . $dest['location_id'];
+    if (!$refresh) {
+        $stmt = db()->prepare('SELECT v FROM kv WHERE k = ? AND updated_at > ?');
+        $stmt->execute([$cacheKey, time() - 86400]);
+        if (($cached = $stmt->fetchColumn()) !== false) {
+            return json_decode((string) $cached, true) ?: [];
+        }
+    }
+    $res = ghl_request($dest, 'GET', '/locations/' . rawurlencode($dest['location_id']) . '/customFields?model=contact');
+    $byName = [];
+    foreach ($res['customFields'] ?? [] as $f) {
+        $byName[strtolower(trim((string) ($f['name'] ?? '')))] = (string) ($f['id'] ?? '');
+    }
+    $ids = [];
+    foreach (GHL_FIELDS as $key => [$name]) {
+        if (!empty($byName[strtolower($name)])) {
+            $ids[$key] = $byName[strtolower($name)];
+        }
+    }
+    $json = json_encode($ids);
+    $pdo  = db();
+    $pdo->prepare('DELETE FROM kv WHERE k = ?')->execute([$cacheKey]);
+    $pdo->prepare('INSERT INTO kv (k, v, updated_at) VALUES (?, ?, ?)')->execute([$cacheKey, $json, time()]);
+    return $ids;
+}
+
+/** Create any missing SWA custom fields in a destination. Returns the names created. */
+function ghl_setup_fields(array $dest): array
+{
+    $have = ghl_field_ids($dest, true);
+    $created = [];
+    foreach (GHL_FIELDS as $key => [$name, $type]) {
+        if (isset($have[$key])) {
+            continue;
+        }
+        ghl_request($dest, 'POST', '/locations/' . rawurlencode($dest['location_id']) . '/customFields',
+            ['name' => $name, 'dataType' => $type, 'model' => 'contact']);
+        $created[] = $name;
+    }
+    ghl_field_ids($dest, true);
+    return $created;
+}
+
+function ghl_log(string $dest, string $event, string $email, bool $ok, string $detail = ''): void
+{
+    try {
+        db()->prepare('INSERT INTO ghl_log (destination, event, email, ok, detail, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+            ->execute([$dest, $event, $email, $ok ? 1 : 0, mb_substr($detail, 0, 500), now_iso()]);
+    } catch (Throwable $e) {
+        error_log('[SWA ghl_log] ' . $e->getMessage());
+    }
+}
+
+/**
+ * Send one event to every GHL destination that wants it.
+ * $contact: email (required), companyName, website, phone
+ * $fields:  our field keys (see GHL_FIELDS) => value
+ * $extraTags: added on top of the event's own tags
+ */
+function ghl_event(string $event, array $contact, array $fields = [], array $extraTags = []): void
+{
+    $email = strtolower(trim((string) ($contact['email'] ?? '')));
+    if (!isset(GHL_EVENTS[$event]) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    $tags = array_values(array_unique(array_filter(array_merge(GHL_EVENTS[$event], $extraTags))));
+
+    foreach (ghl_destinations() as $name => $dest) {
+        $wanted = $dest['events'] ?? 'all';
+        if ($wanted !== 'all' && !in_array($event, (array) $wanted, true)) {
+            continue;
+        }
+        try {
+            $ids = ghl_field_ids($dest);
+            $custom = [];
+            foreach ($fields as $key => $value) {
+                if (isset($ids[$key]) && $value !== null && $value !== '') {
+                    $custom[] = ['id' => $ids[$key], 'fieldValue' => is_numeric($value) && GHL_FIELDS[$key][1] === 'NUMERICAL' ? $value + 0 : (string) $value];
+                }
+            }
+            $body = array_filter([
+                'locationId'   => $dest['location_id'],
+                'email'        => $email,
+                'companyName'  => $contact['companyName'] ?? null,
+                'website'      => $contact['website'] ?? null,
+                'source'       => 'Workflow Shadow Audit',
+                'customFields' => $custom ?: null,
+            ], fn($v) => $v !== null && $v !== '');
+            $res = ghl_request($dest, 'POST', '/contacts/upsert', $body);
+            $contactId = (string) ($res['contact']['id'] ?? '');
+            if ($contactId === '') {
+                throw new RuntimeException('GHL did not return a contact id');
+            }
+            $allTags = array_merge($tags, (array) ($dest['extra_tags'][$event] ?? []));
+            if ($allTags) {
+                // Add tags separately: the upsert "tags" field would replace the contact's existing tags.
+                ghl_request($dest, 'POST', '/contacts/' . rawurlencode($contactId) . '/tags', ['tags' => array_values(array_unique($allTags))]);
+            }
+            ghl_log($name, $event, $email, true, implode(', ', $allTags));
+        } catch (Throwable $e) {
+            error_log("[SWA ghl $name/$event] " . $e->getMessage());
+            ghl_log($name, $event, $email, false, $e->getMessage());
+        }
+    }
+}
+
+/** Fields that describe a Team Audit customer. */
+function ghl_license_fields(array $license): array
+{
+    $profile = load_profile((int) $license['id']);
+    return [
+        'swa_plan'        => plan_name($license),
+        'swa_seats'       => (int) $license['seats'],
+        'swa_audit_ends'  => $license['access_until'] ? substr((string) $license['access_until'], 0, 10) : null,
+        'swa_portal_link' => site_url('portal.php'),
+        'swa_industry'    => $profile['industry'] ? industry_label($profile['industry']) : null,
+    ];
+}
+
+function ghl_license_contact(array $license): array
+{
+    $profile = load_profile((int) $license['id']);
+    return [
+        'email'       => $license['email'],
+        'companyName' => $profile['company'] ?: $license['company'],
+        'website'     => $profile['website'] ?: null,
+    ];
+}
+
+function ghl_industry_tag(?string $industryKey): array
+{
+    return $industryKey && isset(industries()[$industryKey]) ? ['swa-industry-' . str_replace('_', '-', $industryKey)] : [];
 }
