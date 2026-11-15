@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Workflow Shadow Audit",
+  "short_name": "Shadow Audit",
+  "version": "1.0.0",
+  "description": "Read-only, privacy-safe workflow audit. Records only domains, time and tab-switch patterns to find SaaS bloat and automation opportunities.",
+  "minimum_chrome_version": "110",
+  "permissions": ["tabs", "idle", "storage"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Workflow Shadow Audit",
+    "default_popup": "popup.html"
+  }
+}
