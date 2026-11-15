@@ -78,6 +78,12 @@ const el = {
   sendNudge: $('sendNudge'),
   nudgeSendBtn: $('nudgeSendBtn'),
   teamNote: $('teamNote'),
+  surveyBox: $('surveyBox'),
+  surveyForm: $('surveyForm'),
+  surveyThanks: $('surveyThanks'),
+  surveySend: $('surveySend'),
+  surveyComment: $('surveyComment'),
+  helpLink: $('helpLink'),
   keyLinkRow: $('keyLinkRow'),
   keyLink: $('keyLink'),
   keyBox: $('keyBox'),
@@ -227,6 +233,7 @@ function accessFromResult(key, result, previous) {
     company: result.company || '',
     accessUntil: result.accessUntil || null,
     monitoring: !!result.monitoring,
+    solo: !!result.solo,
     portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
     validatedAt: new Date().toISOString()
   });
@@ -301,7 +308,16 @@ async function handleEmail() {
   const email = raw.toLowerCase();
   profile.access = { mode: 'email', tier: 'lite', value: email, unlockedAt: new Date().toISOString() };
   await saveProfile();
-  postJson('/api/lead.php', { email, roleTag: profile.roleTag || '' }).catch(() => {});
+  const insight = buildInsights(latestMetrics);
+  postJson('/api/lead.php', {
+    email,
+    roleTag: profile.roleTag || '',
+    industry: profile.industry || '',
+    bottleneck: insight ? insight.main.area : '',
+    agent: insight ? insight.main.agent : '',
+    agentDoes: insight ? insight.main.does : '',
+    task: insight ? insight.main.task : ''
+  }).catch(() => {});
   render();
 }
 
@@ -649,8 +665,70 @@ function openUpgrade() {
   const params = new URLSearchParams();
   if (profile.access && profile.access.mode === 'email') params.set('email', profile.access.value);
   if (profile.industry) params.set('industry', profile.industry);
+  if (!isBusiness()) params.set('plan', 'solo');
   const query = params.toString();
   openTab(BUSINESS_BASE_URL + '/' + (query ? '?' + query : ''));
+}
+
+/* ------------------------------------------------------------------ */
+/* Survey (end of the free audit, or after a team member sends)        */
+/* ------------------------------------------------------------------ */
+
+const survey = { accurate: '', nps: '', wantsHelp: '' };
+
+function setupSurvey() {
+  const npsRow = document.querySelector('.seg.nps');
+  for (let n = 0; n <= 10; n++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.v = String(n);
+    b.textContent = String(n);
+    npsRow.appendChild(b);
+  }
+  document.querySelectorAll('.seg').forEach((seg) => {
+    seg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn));
+      survey[seg.dataset.q] = btn.dataset.v;
+      el.surveySend.disabled = !(survey.accurate && survey.wantsHelp);
+    });
+  });
+  el.surveySend.addEventListener('click', sendSurvey);
+}
+
+function surveyWanted() {
+  if (profile.surveyDone) return false;
+  if (isBusiness()) return !!profile.lastSyncAt;     // team member: after they send their audit
+  return hasEmail() && !!(status.trial && status.trial.completedAt); // free: after results
+}
+
+async function sendSurvey() {
+  el.surveySend.disabled = true;
+  const insight = buildInsights(latestMetrics);
+  const body = {
+    accurate: survey.accurate,
+    nps: survey.nps === '' ? null : Number(survey.nps),
+    wantsHelp: survey.wantsHelp === 'yes',
+    comment: el.surveyComment.value.trim(),
+    industry: profile.industry || '',
+    agent: insight ? insight.main.agent : ''
+  };
+  if (isBusiness()) {
+    Object.assign(body, { context: 'team_member', key: profile.access.value, deviceId: await getDeviceId() });
+  } else {
+    Object.assign(body, { context: 'free', email: profile.access.value });
+  }
+  try {
+    await postJson('/api/feedback.php', body);
+  } catch (e) {
+    // Never block the user on feedback.
+  }
+  profile.surveyDone = true;
+  await saveProfile();
+  el.surveyForm.classList.add('hidden');
+  el.surveyThanks.textContent = body.wantsHelp ? "Thank you! We'll reach out soon." : 'Thank you! That helps us a lot.';
+  el.surveyThanks.classList.remove('hidden');
 }
 
 /* ------------------------------------------------------------------ */
@@ -884,8 +962,15 @@ function render() {
   renderStats(insight, totalSeconds);
   renderBots(insight, business);
 
-  // Team members: what the company sees, and a reminder to send.
-  show(el.teamNote, business);
+  // Team members: what the company sees, and a reminder to send. (Solo buyers are the owner.)
+  const solo = business && !!(profile.access && profile.access.solo);
+  show(el.teamNote, business && !solo);
+  $('nudgeTitle').textContent = solo ? 'Ready to send your audit?' : 'Your company is waiting for your audit.';
+  if (!el.surveyThanks.classList.contains('hidden')) {
+    show(el.surveyBox, true);
+  } else {
+    show(el.surveyBox, surveyWanted() && !el.viewResults.classList.contains('hidden'));
+  }
   const lastSync = profile.lastSyncAt ? Date.parse(profile.lastSyncAt) : 0;
   show(el.sendNudge, business && totalSeconds >= NUDGE_AFTER_SECONDS && (!lastSync || Date.now() - lastSync > NUDGE_AGAIN_MS));
 
@@ -953,6 +1038,8 @@ async function init() {
   el.downloadBtn.addEventListener('click', handleDownload);
   el.syncBtn.addEventListener('click', handleSync);
   el.nudgeSendBtn.addEventListener('click', handleSync);
+  el.helpLink.addEventListener('click', () => openTab(BUSINESS_BASE_URL + '/help.php'));
+  setupSurvey();
   el.portalBtn.addEventListener('click', () => {
     openTab((profile.access && profile.access.portalUrl) || BUSINESS_BASE_URL + '/portal.php');
   });

@@ -8,7 +8,9 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 |---|---|---|
 | **Workflow Shadow Audit** | The product and the Chrome extension | "the plugin", "the widget" in customer copy |
 | **free audit** | One person, one 5-hour audit in the extension | Lite, trial, freemium |
+| **Solo Audit** | The paid, one-time audit for one person (solo founders) | Pro, Premium, single seat |
 | **Team Audit** | The paid, one-time audit for a whole team | Business plan, Business tier, Pro |
+| **paid audit** | Solo Audit or Team Audit, when talking about both | upgrade, premium |
 | **Starter / Team / Company** | Team Audit sizes: up to 5 / 15 / 50 people | seats tier, bundle |
 | **team key** | The `AUDIT-XXXX-XXXX-XXXX-XXXX` code a buyer shares with their team | license key, Business key, access key |
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
@@ -30,7 +32,17 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Turn on Results Tracking** · **Book a call to build these agents →**
 - Team invite page: **Join [company]'s Team Audit** → Add the extension · Paste your team key · Turn tracking on
 
+## Guarantee (always the same, set in config)
+*Not happy with your audit? Ask for your money back within 30 days. No questions asked.*
+Customers request it from Help in the Business Portal. You refund in Stripe.
+
+## Survey (same three questions everywhere)
+1. Did this find something real? Spot on / Partly / Not really
+2. How likely are you to recommend it? 0–10
+3. Want help fixing it? Yes, reach out / Not now (+ optional "What did we miss?")
+
 ## The promise, in one line each
+- Solo Audit: *Just you, with no time limit. Keeps the hours you already tracked.*
 - Free audit: *Turn it on and work like normal. After 5 hours of work, you'll see the task you repeat most, the AI agent that can do it for you, and a simple step-by-step fix.*
 - Team Audit: *Everyone runs the private, read-only audit for a few days. You get one report: your biggest bottlenecks, the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them, plus a Back-Office Check for your industry.*
 - Results Tracking: *Keep auditing every month after your agents are built, and see what improved.*

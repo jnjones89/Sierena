@@ -36,5 +36,6 @@ json_out([
     'seatsUsed'   => seats_used((int) $license['id']),
     'accessUntil' => license_monitoring($license) ? null : $license['access_until'],
     'monitoring'  => license_monitoring($license),
+    'solo'        => license_is_solo($license),
     'portalUrl'   => site_url('portal.php'),
 ]);

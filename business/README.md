@@ -83,6 +83,14 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
   see connected browsers, profile, team data and month-by-month progress.
 - Free audit leads.
 
+## Solo Audit, guarantee, survey
+- **Solo Audit** (plan `solo` in config): one computer, no time limit, free-audit hours carry over. The portal hides team pages.
+- **Guarantee:** set `guarantee` in config. Customers ask from Help in the portal; you get an email and refund in Stripe.
+- **Survey:** three questions after the free results (extension), after a team member sends (extension), and after the owner's report (portal). Answers and the "Is the audit doing its job?" scoreboard are on `admin.php`.
+
+## GoHighLevel
+See `GHL-SETUP.md`: connect tokens, click **Create GHL fields** on the admin page, then build the tag-triggered workflows.
+
 ## Wording
 `MESSAGING.md` lists the exact names, buttons and promise lines used everywhere (extension, pages, emails).
 Industry lists live in `includes/industries.php` and `../workflow-shadow-audit/industries.js` — keep them identical.

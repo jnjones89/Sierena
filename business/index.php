@@ -5,7 +5,7 @@ require __DIR__ . '/includes/lib.php';
 $canceled = isset($_GET['canceled']);
 $error    = (string) ($_GET['error'] ?? '');
 $prefill  = filter_var((string) ($_GET['email'] ?? ''), FILTER_VALIDATE_EMAIL) ?: '';
-$selected = (string) ($_GET['plan'] ?? 'team');
+$selected = (string) ($_GET['plan'] ?? (isset($_GET['solo']) ? 'solo' : 'team'));
 $plans    = (array) cfg('plans');
 if (!isset($plans[$selected])) {
     $selected = (string) array_key_first($plans);
@@ -16,9 +16,9 @@ $days       = (int) cfg('audit_access_days');
 
 render_header('Team Audit');
 ?>
-<h1>Find the bottlenecks across your whole team</h1>
-<p class="lead">Everyone runs the private, read-only audit for a few days. You get one report: your biggest bottlenecks,
-the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them.</p>
+<h1>Find what's slowing your business down</h1>
+<p class="lead">Run the private, read-only audit for a few days, on your own or with your whole team. You get one report:
+your biggest bottlenecks, the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them.</p>
 <div class="trust">
   <span><b>Read-only.</b> Nothing on your computers is changed.</span>
   <span><b>Never sees</b> emails, files, passwords or typing.</span>
@@ -38,13 +38,24 @@ the repetitive tasks behind them, the AI agents you need, and a step-by-step pla
       <label class="card plan selectable<?= $key === $selected ? ' featured' : '' ?>">
         <input type="radio" name="plan" value="<?= h($key) ?>" <?= $key === $selected ? 'checked' : '' ?>>
         <h2><?= h($plan['name']) ?> <span class="price"><?= h($plan['price_label']) ?></span></h2>
-        <p class="muted small">One-time payment · up to <?= (int) $plan['people'] ?> people</p>
-        <ul>
-          <li>Browser audit for up to <?= (int) $plan['people'] ?> people</li>
-          <li>Back-Office Check for your industry</li>
-          <li>Instant AI report, plus a final plan from our team</li>
-          <li><?= $days ?> days to run the audit</li>
-        </ul>
+        <?php if (!empty($plan['solo'])): ?>
+          <p class="muted small">One-time payment · just you</p>
+          <ul>
+            <li>No 5-hour limit: audit your whole week</li>
+            <li>Back-Office Check for your industry</li>
+            <li>Your tools and what they really cost</li>
+            <li>Instant AI report<?= !empty($plan['final_plan']) ? ', plus a final plan from our team' : ' and a free call to go over it' ?></li>
+            <li>Your free audit hours carry over</li>
+          </ul>
+        <?php else: ?>
+          <p class="muted small">One-time payment · up to <?= (int) $plan['people'] ?> people</p>
+          <ul>
+            <li>Browser audit for up to <?= (int) $plan['people'] ?> people</li>
+            <li>Back-Office Check for your industry</li>
+            <li>Instant AI report<?= ($plan['final_plan'] ?? true) ? ', plus a final plan from our team' : '' ?></li>
+            <li><?= $days ?> days to run the audit</li>
+          </ul>
+        <?php endif; ?>
       </label>
     <?php endforeach; ?>
   </div>
@@ -58,6 +69,7 @@ the repetitive tasks behind them, the AI agents you need, and a step-by-step pla
       <input type="text" name="company" required maxlength="200" placeholder="Acme Inc.">
     </label>
     <button class="btn primary block" type="submit">Continue to secure checkout →</button>
+    <p class="guarantee"><b>Money-back guarantee.</b> <?= h(guarantee_text()) ?></p>
     <p class="muted small">You'll pay on Stripe. Your team key appears right after payment and is emailed to you.
       If we build your agents, the audit price is credited toward the build.</p>
   </section>
@@ -90,7 +102,7 @@ the repetitive tasks behind them, the AI agents you need, and a step-by-step pla
 </section>
 
 <section class="card">
-  <h2>Just you? Run a free audit</h2>
+  <h2>Not ready to buy? Run a free audit</h2>
   <p class="muted">The free Chrome extension runs one 5-hour audit and shows your #1 repetitive task, the AI agent that can do it,
     and a step-by-step fix.</p>
 </section>

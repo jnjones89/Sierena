@@ -19,7 +19,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         session_regenerate_id(true);
         redirect(site_url('admin.php'));
     }
-    if (!empty($_SESSION['is_admin']) && in_array($_POST['action'] ?? '', ['save_final', 'free_seats', 'extend'], true)) {
+    if (!empty($_SESSION['is_admin']) && in_array($_POST['action'] ?? '', ['save_final', 'free_seats', 'extend', 'set_stage'], true)) {
         $lid = (int) ($_POST['license_id'] ?? 0);
         $lic = find_license_by_id($lid);
         if ($lic) {
@@ -35,7 +35,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                             "Your full AI agent plan is ready in your Business Portal:\n\n    " . site_url('portal.php')
                             . "\n\nWhen you're ready to build it, book a call: " . cfg('booking_url') . "\n\n— " . cfg('brand_name') . "\n"
                         );
+                        ghl_event('final_plan_sent', ghl_license_contact($lic), ghl_license_fields($lic));
                     }
+                }
+            } elseif ($act === 'set_stage') {
+                $stage = (string) ($_POST['stage'] ?? '');
+                if (array_key_exists($stage, BUILD_STAGES)) {
+                    write_profile_data($lid, array_merge(profile_data($lid), ['stage' => $stage]));
                 }
             } elseif ($act === 'free_seats') {
                 db()->prepare('DELETE FROM devices WHERE license_id = ?')->execute([$lid]);
@@ -46,6 +52,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             }
         }
         redirect(site_url('admin.php?view=' . $lid));
+    }
+    if (!empty($_SESSION['is_admin']) && ($_POST['action'] ?? '') === 'ghl_setup') {
+        $msgs = [];
+        foreach (ghl_destinations() as $name => $dest) {
+            try {
+                $made = ghl_setup_fields($dest);
+                $msgs[] = $name . ': ' . ($made ? 'created ' . implode(', ', $made) : 'all fields already there');
+            } catch (Throwable $e) {
+                $msgs[] = $name . ': ' . $e->getMessage();
+                log_issue('ghl', 'Field setup for ' . $name . ': ' . $e->getMessage());
+            }
+        }
+        $_SESSION['admin_flash'] = $msgs ? implode(' · ', $msgs) : 'No GHL destinations set up yet. Add a token in the config file.';
+        redirect(site_url('admin.php') . '#ghl');
     }
     if (($_POST['action'] ?? '') === 'login') {
         if (!rate_limit('admin_login', 5, 900)) {
@@ -115,6 +135,25 @@ if (isset($_GET['view'])) {
       <div class="stat"><b><?= h(format_date($license['access_until'])) ?></b><span>Audit open until</span></div>
       <div class="stat"><b><?= license_monitoring($license) ? 'On' : h($license['monitor_status'] === 'none' ? 'Off' : $license['monitor_status']) ?></b><span>Results Tracking</span></div>
     </div>
+    <?php $stage = (string) (profile_data($lid)['stage'] ?? ''); ?>
+    <form class="actions" method="post" action="admin.php" style="margin-bottom:10px">
+      <?= $hidden ?><input type="hidden" name="action" value="set_stage">
+      <label style="margin:0">Build stage (the customer sees this on their Home page)
+        <select name="stage"><?php foreach (BUILD_STAGES as $k => $lbl): ?><option value="<?= h($k) ?>"<?= $k === $stage ? ' selected' : '' ?>><?= h($lbl) ?></option><?php endforeach; ?></select>
+      </label>
+      <button class="btn" type="submit">Save stage</button>
+    </form>
+    <?php
+      $fb = db()->prepare('SELECT * FROM feedback WHERE license_id = ? ORDER BY id DESC');
+      $fb->execute([$lid]);
+      $fbRows = $fb->fetchAll();
+    ?>
+    <?php if ($fbRows): ?>
+      <section class="card"><h2>What they told us</h2>
+        <div class="table-wrap"><table><tr><th>Who</th><th>Accurate?</th><th>Recommend</th><th>Wants help</th><th>Comment</th></tr>
+        <?php foreach ($fbRows as $f): ?><tr><td><?= h($f['context'] === 'owner' ? 'Owner' : 'Team member') ?></td><td><?= h(ACCURACY_ANSWERS[$f['accurate']] ?? '—') ?></td><td><?= $f['nps'] === null ? '—' : (int) $f['nps'] ?></td><td><?= $f['wants_help'] ? 'Yes' : '—' ?></td><td><?= h($f['comment']) ?></td></tr><?php endforeach; ?>
+        </table></div></section>
+    <?php endif; ?>
     <div class="actions" style="margin-bottom:18px">
       <form class="inline" method="post" action="admin.php"><?= $hidden ?><input type="hidden" name="action" value="extend"><button class="btn" type="submit">Extend audit +30 days</button></form>
       <form class="inline" method="post" action="admin.php" onsubmit="return confirm('Disconnect every browser from this key? Teammates re-connect by entering the key again.')"><?= $hidden ?><input type="hidden" name="action" value="free_seats"><button class="btn danger" type="submit">Free all seats</button></form>
@@ -174,9 +213,52 @@ $leads = db()->query('SELECT * FROM leads ORDER BY id DESC LIMIT 200')->fetchAll
   <div class="actions" style="justify-content:space-between">
     <h1 style="margin:0">Admin</h1><?= $logout ?>
   </div>
+  <?php if (!empty($_SESSION['admin_flash'])): ?><div class="alert ok"><?= h($_SESSION['admin_flash']) ?></div><?php unset($_SESSION['admin_flash']); endif; ?>
+
+  <?php $sb = scoreboard(); ?>
+  <section class="card">
+    <h2>Is the audit doing its job?</h2>
+    <div class="stats">
+      <div class="stat"><b><?= (int) $sb['free_audits'] ?></b><span>Free audits finished (emails)</span></div>
+      <div class="stat"><b><?= (int) $sb['purchases'] ?></b><span>Paid audits<?= $sb['conversion'] !== null ? ' · ' . (int) $sb['conversion'] . '% of free' : '' ?></span></div>
+      <div class="stat"><b><?= (int) $sb['reports'] ?> → <?= (int) $sb['final_plans'] ?></b><span>Instant reports → final plans</span></div>
+      <div class="stat"><b><?= (int) $sb['tracking'] ?></b><span>On Results Tracking</span></div>
+      <div class="stat"><b><?= $sb['accuracy'] === null ? '—' : (int) $sb['accuracy'] . '%' ?></b><span>Said it found something real</span></div>
+      <div class="stat"><b><?= $sb['nps'] === null ? '—' : (int) $sb['nps'] ?></b><span>Recommend score (NPS, <?= (int) $sb['nps_count'] ?> answers)</span></div>
+      <div class="stat"><b><?= (int) $sb['wants_help'] ?></b><span>Asked for help fixing it</span></div>
+      <div class="stat"><b><?= $sb['fallback_rate'] === null ? '—' : (int) $sb['fallback_rate'] . '%' ?></b><span>Free results with no specific agent match</span></div>
+    </div>
+    <?php if ($sb['by_plan']): ?><p class="muted small">By plan: <?= h(implode(' · ', array_map(fn($k, $v) => (plan_info((string) $k)['name'] ?? $k) . ' ' . $v, array_keys($sb['by_plan']), $sb['by_plan']))) ?></p><?php endif; ?>
+    <?php if ($sb['unknown_tools']): ?>
+      <p class="muted small">Tools teams use that the tool list doesn't recognize yet (add them to <code>insights.js</code>, then <code>tools.php</code>):
+        <?= h(implode(', ', array_map(fn($d, $m) => $d . ' (' . round($m / 60, 1) . ' h)', array_keys($sb['unknown_tools']), $sb['unknown_tools']))) ?></p>
+    <?php endif; ?>
+  </section>
+
+  <?php
+    $recentFb = db()->query("SELECT * FROM feedback ORDER BY id DESC LIMIT 25")->fetchAll();
+    $issues   = db()->query('SELECT * FROM issues ORDER BY id DESC LIMIT 20')->fetchAll();
+  ?>
+  <?php if ($issues): ?>
+    <section class="card"><h2>Needs attention</h2>
+      <div class="table-wrap"><table><tr><th>When</th><th>What</th><th>Details</th></tr>
+      <?php foreach ($issues as $i): ?><tr><td><?= h(format_date($i['created_at'])) ?></td><td><?= h(ucfirst(str_replace('_', ' ', $i['kind']))) ?></td><td><?= h($i['detail']) ?></td></tr><?php endforeach; ?>
+      </table></div></section>
+  <?php endif; ?>
+
+  <section class="card"><h2>Survey answers (latest <?= count($recentFb) ?>)</h2>
+    <?php if (!$recentFb): ?><p class="muted">No answers yet.</p><?php else: ?>
+      <div class="table-wrap"><table><tr><th>Date</th><th>Who</th><th>Accurate?</th><th>Recommend</th><th>Wants help</th><th>Comment</th></tr>
+      <?php foreach ($recentFb as $f): ?><tr>
+        <td><?= h(format_date($f['created_at'])) ?></td>
+        <td><?= h($f['email'] ?: ($f['context'] === 'team_member' ? 'Team member' : 'Owner')) ?><?= $f['license_id'] ? ' · <a href="admin.php?view=' . (int) $f['license_id'] . '">open</a>' : '' ?></td>
+        <td><?= h(ACCURACY_ANSWERS[$f['accurate']] ?? '—') ?></td><td><?= $f['nps'] === null ? '—' : (int) $f['nps'] ?></td>
+        <td><?= $f['wants_help'] ? '<span class="badge green">Yes</span>' : '—' ?></td><td><?= h($f['comment']) ?></td></tr><?php endforeach; ?>
+      </table></div>
+    <?php endif; ?></section>
 
   <section class="card">
-    <h2>Team Audit customers (<?= count($customers) ?>)</h2>
+    <h2>Paid customers (<?= count($customers) ?>)</h2>
     <?php if (!$customers): ?>
       <p class="muted">No customers yet.</p>
     <?php else: ?>
@@ -203,11 +285,29 @@ $leads = db()->query('SELECT * FROM leads ORDER BY id DESC LIMIT 200')->fetchAll
       <p class="muted">No leads yet.</p>
     <?php else: ?>
       <div class="table-wrap"><table>
-        <tr><th>Email</th><th>Role</th><th>Date</th></tr>
+        <tr><th>Email</th><th>Industry</th><th>Bottleneck</th><th>Agent suggested</th><th>Date</th></tr>
         <?php foreach ($leads as $l): ?>
-          <tr><td><?= h($l['email']) ?></td><td><?= h($l['role_tag']) ?></td><td><?= h(substr((string) $l['created_at'], 0, 10)) ?></td></tr>
+          <tr><td><?= h($l['email']) ?><?= $l['role_tag'] ? '<br><span class="muted small">' . h($l['role_tag']) . '</span>' : '' ?></td>
+            <td><?= $l['industry'] ? h(industry_label($l['industry'])) : '—' ?></td><td><?= h($l['bottleneck'] ?: '—') ?></td>
+            <td><?= h($l['agent'] ?: '—') ?></td><td><?= h(substr((string) $l['created_at'], 0, 10)) ?></td></tr>
         <?php endforeach; ?>
       </table></div>
+    <?php endif; ?>
+  </section>
+  <section class="card" id="ghl"><h2>GoHighLevel</h2>
+    <?php $dests = ghl_destinations(); ?>
+    <?php if (!$dests): ?>
+      <p class="muted">Not connected. Add a Private Integration token for each sub-account under <code>ghl</code> in your config file.</p>
+    <?php else: ?>
+      <p>Sending to: <b><?= h(implode(', ', array_keys($dests))) ?></b></p>
+      <form method="post" action="admin.php"><?= csrf_field() ?><input type="hidden" name="action" value="ghl_setup"><button class="btn" type="submit">Create GHL fields</button></form>
+      <?php $log = db()->query('SELECT * FROM ghl_log ORDER BY id DESC LIMIT 15')->fetchAll(); ?>
+      <?php if ($log): ?>
+        <div class="table-wrap" style="margin-top:12px"><table><tr><th>When</th><th>To</th><th>Event</th><th>Contact</th><th>Result</th></tr>
+        <?php foreach ($log as $g): ?><tr><td><?= h(format_date($g['created_at'])) ?></td><td><?= h($g['destination']) ?></td><td><?= h($g['event']) ?></td><td><?= h($g['email']) ?></td>
+          <td><?= $g['ok'] ? '<span class="badge green">Sent</span> <span class="muted small">' . h($g['detail']) . '</span>' : '<span class="badge red">Failed</span> <span class="muted small">' . h($g['detail']) . '</span>' ?></td></tr><?php endforeach; ?>
+        </table></div>
+      <?php endif; ?>
     <?php endif; ?>
   </section>
 <?php

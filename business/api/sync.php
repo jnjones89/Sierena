@@ -34,6 +34,13 @@ if ($clean === null) {
 
 $auditId = store_audit((int) $license['id'], $clean, $deviceId);
 
+$count = db()->prepare('SELECT COUNT(*) FROM audits WHERE license_id = ?');
+$count->execute([(int) $license['id']]);
+$received = (int) $count->fetchColumn();
+if ($received === 1) {
+    ghl_event('first_audit_received', ghl_license_contact($license), ['swa_audits_received' => 1] + ghl_license_fields($license));
+}
+
 json_out([
     'ok'        => true,
     'auditId'   => $auditId,

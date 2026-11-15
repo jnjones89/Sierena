@@ -84,6 +84,8 @@ function ensure_schema(PDO $pdo): void
         $pdo->query('SELECT 1 FROM reports LIMIT 1');
         $pdo->query('SELECT device_id FROM audits LIMIT 1');
         $pdo->query('SELECT 1 FROM ghl_log LIMIT 1');
+        $pdo->query('SELECT 1 FROM feedback LIMIT 1');
+        $pdo->query('SELECT agent FROM leads LIMIT 1');
         return; // schema is current
     } catch (PDOException $e) {
         // create / upgrade below
@@ -179,6 +181,43 @@ function ensure_schema(PDO $pdo): void
         email VARCHAR(255) NOT NULL UNIQUE,
         role_tag VARCHAR(80) NOT NULL DEFAULT '',
         source VARCHAR(40) NOT NULL DEFAULT '',
+        industry VARCHAR(40) NOT NULL DEFAULT '',
+        bottleneck VARCHAR(80) NOT NULL DEFAULT '',
+        agent VARCHAR(80) NOT NULL DEFAULT '',
+        task VARCHAR(300) NOT NULL DEFAULT '',
+        created_at VARCHAR(32) NOT NULL
+    )$suffix");
+
+    foreach (['industry' => 'VARCHAR(40)', 'bottleneck' => 'VARCHAR(80)', 'agent' => 'VARCHAR(80)', 'task' => 'VARCHAR(300)'] as $col => $type) {
+        try {
+            $pdo->query("SELECT $col FROM leads LIMIT 1");
+        } catch (PDOException $e) {
+            try {
+                $pdo->exec("ALTER TABLE leads ADD COLUMN $col $type NOT NULL DEFAULT ''");
+            } catch (PDOException $e2) {
+                // leads table is created below with the columns
+            }
+        }
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS feedback (
+        id $id,
+        context VARCHAR(20) NOT NULL,
+        email VARCHAR(255) NOT NULL DEFAULT '',
+        license_id INT NOT NULL DEFAULT 0,
+        accurate VARCHAR(20) NOT NULL DEFAULT '',
+        nps INT NULL,
+        wants_help INT NOT NULL DEFAULT 0,
+        comment VARCHAR(2000) NOT NULL DEFAULT '',
+        industry VARCHAR(40) NOT NULL DEFAULT '',
+        agent VARCHAR(80) NOT NULL DEFAULT '',
+        created_at VARCHAR(32) NOT NULL
+    )$suffix");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS issues (
+        id $id,
+        kind VARCHAR(40) NOT NULL,
+        detail VARCHAR(1000) NOT NULL,
         created_at VARCHAR(32) NOT NULL
     )$suffix");
 
@@ -467,6 +506,24 @@ function plan_name(array $license): string
     return $info ? (string) $info['name'] : 'Team Audit';
 }
 
+function license_is_solo(array $license): bool
+{
+    $info = plan_info((string) $license['plan']);
+    return (bool) ($info['solo'] ?? false) || (int) $license['seats'] === 1;
+}
+
+/** Does this plan include a final plan written by our team? */
+function plan_includes_final_plan(array $license): bool
+{
+    $info = plan_info((string) $license['plan']);
+    return (bool) ($info['final_plan'] ?? true);
+}
+
+function guarantee_text(): string
+{
+    return (string) cfg_opt('guarantee', 'Not happy with your audit? Ask for your money back within 30 days. No questions asked.');
+}
+
 function license_monitoring(array $license): bool
 {
     return $license['monitor_status'] === 'active';
@@ -591,6 +648,7 @@ function fulfill_monitoring_session(array $session): ?array
             now_iso(),
             (int) $license['id'],
         ]);
+    ghl_event('results_tracking_on', ghl_license_contact($license), ghl_license_fields($license));
     send_mail(
         (string) cfg('owner_email'),
         'Results Tracking started: ' . ($license['company'] ?: $license['email']),
@@ -610,7 +668,7 @@ function notify_new_license(array $license): void
         "Your $brand $plan key",
         "Thanks for purchasing the $plan.\n\n"
         . "Your team key:\n\n    {$license['license_key']}\n\n"
-        . "It works for up to {$license['seats']} people until $until.\n\n"
+        . ((int) $license['seats'] === 1 ? "It works on one computer until $until.\n\n" : "It works for up to {$license['seats']} people until $until.\n\n")
         . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a team key?\", pastes this key and turns tracking on.\n"
         . "2. Everyone works normally for a few days, then clicks \"Send to my Business Portal\".\n"
         . "3. Sign in to your Business Portal with this email and key. Fill in your business profile and the Back-Office Check,\n"
@@ -624,6 +682,8 @@ function notify_new_license(array $license): void
         "New purchase.\n\nPlan: $plan ({$license['seats']} people)\nCompany: {$license['company']}\n"
         . "Email: {$license['email']}\nAccess until: $until\n\nAdmin: " . site_url('admin.php?view=' . (int) $license['id']) . "\n"
     );
+    ghl_event('team_audit_purchased', ['email' => $license['email'], 'companyName' => $license['company']],
+        ghl_license_fields($license), ['swa-plan-' . $license['plan']]);
 }
 
 /** Keep Results Tracking in sync with its Stripe subscription. */
@@ -633,8 +693,14 @@ function sync_subscription_status(array $subscription): void
         return;
     }
     $active = in_array($subscription['status'] ?? '', ['active', 'trialing', 'past_due'], true);
+    $find = db()->prepare('SELECT * FROM licenses WHERE monitor_subscription_id = ?');
+    $find->execute([$subscription['id']]);
+    $before = $find->fetch() ?: null;
     db()->prepare('UPDATE licenses SET monitor_status = ?, updated_at = ? WHERE monitor_subscription_id = ?')
         ->execute([$active ? 'active' : 'canceled', now_iso(), $subscription['id']]);
+    if ($before && !$active && $before['monitor_status'] === 'active') {
+        ghl_event('results_tracking_canceled', ghl_license_contact($before), ghl_license_fields($before));
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -1048,6 +1114,8 @@ function build_business_prompt(array $license, array $profile, array $aggregate,
                 : ($t['desktop'] ? 'desktop app (the browser audit cannot see it)' : 'not seen in the browser audit'));
     }
     $toolText = $toolLines ? implode("\n", $toolLines) : '- (The owner has not listed their software yet. Use the telemetry and estimates.)';
+    $coverage = round(((float) ($aggregate['totalActiveMinutes'] ?? 0)) / 60, 1) . ' hours of work across '
+        . (int) ($aggregate['auditCount'] ?? 0) . ' audit(s).';
     $labels = profile_fields();
     $profileLines = [];
     foreach ($profile as $key => $val) {
@@ -1082,7 +1150,12 @@ Keep the whole report under about 1,500 words.
    names, active minutes, visit counts, repeated 4-site patterns and quick tab jumps (less than 30 seconds apart).
    No page content or personal data.
 
+## Data behind this report
+{$coverage}
+
 ## Rules
+- Start the report with one line saying what it is based on (hours of work and number of audits). If it is under
+  10 hours, say the findings are early and will sharpen with more data.
 - Use only the data provided. When a number is missing, say it is an estimate and show the simple math.
 - Use the hourly labor cost from the profile if given; otherwise assume \$45/hour and 21.7 workdays/month.
 - Ignore personal (non-work) websites in the cost math.
@@ -1405,6 +1478,8 @@ const GHL_EVENTS = [
     'final_plan_sent'           => ['swa-final-plan-sent'],
     'results_tracking_on'       => ['swa-results-tracking-on'],
     'results_tracking_canceled' => ['swa-results-tracking-canceled'],
+    'wants_help'                => ['swa-wants-help'],
+    'refund_requested'          => ['swa-refund-requested'],
 ];
 
 /** Our field key => [name shown in GHL, data type]. GHL merge tag: {{contact.<key>}}. */
@@ -1421,6 +1496,8 @@ const GHL_FIELDS = [
     'swa_agent_does'        => ['SWA Agent Does', 'LARGE_TEXT'],
     'swa_audits_received'   => ['SWA Audits Received', 'NUMERICAL'],
     'swa_backoffice_score'  => ['SWA Back Office Score', 'NUMERICAL'],
+    'swa_nps'               => ['SWA Recommend Score', 'NUMERICAL'],
+    'swa_accuracy'          => ['SWA Accuracy Rating', 'TEXT'],
 ];
 
 function ghl_destinations(): array
@@ -1574,6 +1651,7 @@ function ghl_event(string $event, array $contact, array $fields = [], array $ext
         } catch (Throwable $e) {
             error_log("[SWA ghl $name/$event] " . $e->getMessage());
             ghl_log($name, $event, $email, false, $e->getMessage());
+            log_issue('ghl', "$name/$event for $email: " . $e->getMessage());
         }
     }
 }
@@ -1604,4 +1682,222 @@ function ghl_license_contact(array $license): array
 function ghl_industry_tag(?string $industryKey): array
 {
     return $industryKey && isset(industries()[$industryKey]) ? ['swa-industry-' . str_replace('_', '-', $industryKey)] : [];
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Issues (shown on the admin page so nothing fails silently)          */
+/* ------------------------------------------------------------------ */
+
+function log_issue(string $kind, string $detail): void
+{
+    try {
+        db()->prepare('INSERT INTO issues (kind, detail, created_at) VALUES (?, ?, ?)')
+            ->execute([mb_substr($kind, 0, 40), mb_substr($detail, 0, 1000), now_iso()]);
+    } catch (Throwable $e) {
+        error_log('[SWA log_issue] ' . $e->getMessage());
+    }
+}
+
+/* ------------------------------------------------------------------ */
+/* Survey / feedback                                                   */
+/* ------------------------------------------------------------------ */
+
+const ACCURACY_ANSWERS = ['spot_on' => 'Spot on', 'partly' => 'Partly', 'not_really' => 'Not really'];
+
+function save_feedback(array $f): int
+{
+    db()->prepare('INSERT INTO feedback (context, email, license_id, accurate, nps, wants_help, comment, industry, agent, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        ->execute([
+            $f['context'],
+            $f['email'] ?? '',
+            (int) ($f['license_id'] ?? 0),
+            isset(ACCURACY_ANSWERS[$f['accurate'] ?? '']) ? $f['accurate'] : '',
+            isset($f['nps']) && $f['nps'] !== '' && $f['nps'] !== null ? max(0, min(10, (int) $f['nps'])) : null,
+            empty($f['wants_help']) ? 0 : 1,
+            mb_substr(trim((string) ($f['comment'] ?? '')), 0, 2000),
+            mb_substr((string) ($f['industry'] ?? ''), 0, 40),
+            mb_substr((string) ($f['agent'] ?? ''), 0, 80),
+            now_iso(),
+        ]);
+    return (int) db()->lastInsertId();
+}
+
+function feedback_given(int $licenseId, string $context): bool
+{
+    $stmt = db()->prepare('SELECT 1 FROM feedback WHERE license_id = ? AND context = ? LIMIT 1');
+    $stmt->execute([$licenseId, $context]);
+    return (bool) $stmt->fetchColumn();
+}
+
+/* ------------------------------------------------------------------ */
+/* How much data a report is based on                                  */
+/* ------------------------------------------------------------------ */
+
+function data_coverage(array $license, array $audits, array $devices): array
+{
+    $hours  = 0.0;
+    $dates  = [];
+    $senders = [];
+    foreach ($audits as $a) {
+        $hours += (float) $a['total_minutes'] / 60;
+        $dates[] = substr((string) $a['created_at'], 0, 10);
+        $senders[$a['device_id'] ?: ('audit-' . $a['id'])] = true;
+    }
+    $solo    = license_is_solo($license);
+    $minimum = $solo ? 5 : 10;
+    $waiting = [];
+    foreach ($devices as $d) {
+        if ((int) $d['audits_sent'] === 0) {
+            $waiting[] = $d['role_tag'] ?: 'someone';
+        }
+    }
+    $people = count($senders);
+    $text = $audits
+        ? 'Based on ' . round($hours, 1) . ' hours of work'
+            . ($solo ? '' : ' from ' . $people . ' ' . ($people === 1 ? 'person' : 'people'))
+            . ($dates ? (min($dates) === max($dates) ? ', sent on ' . format_date(min($dates)) : ', sent between ' . format_date(min($dates)) . ' and ' . format_date(max($dates))) : '')
+            . '.'
+        : 'No audits yet.';
+    if (!$solo && $waiting) {
+        $text .= ' Still waiting on ' . count($waiting) . ' (' . implode(', ', array_slice($waiting, 0, 4)) . ').';
+    }
+    return [
+        'hours'   => round($hours, 1),
+        'people'  => $people,
+        'waiting' => $waiting,
+        'enough'  => $hours >= $minimum,
+        'minimum' => $minimum,
+        'text'    => $text,
+    ];
+}
+
+/* ------------------------------------------------------------------ */
+/* What happens next                                                   */
+/* ------------------------------------------------------------------ */
+
+/** Stages set by our team on the admin page. */
+const BUILD_STAGES = [
+    ''          => 'Not started',
+    'call'      => 'Build call booked',
+    'building'  => 'Building',
+    'golive'    => 'Go-Live check',
+    'live'      => 'Live',
+];
+
+function journey(array $license, bool $hasAudits, bool $hasAi, bool $hasFinal): array
+{
+    $stage = (string) (profile_data((int) $license['id'])['stage'] ?? '');
+    $order = array_keys(BUILD_STAGES);
+    $at    = array_search($stage, $order, true) ?: 0;
+    $final = plan_includes_final_plan($license);
+    $steps = [
+        ['label' => 'Audit', 'done' => $hasAudits],
+        ['label' => 'Instant AI report', 'done' => $hasAi],
+    ];
+    if ($final) {
+        $steps[] = ['label' => 'Final plan (within 2 business days)', 'done' => $hasFinal];
+    }
+    $steps[] = ['label' => 'Build call', 'done' => $at >= 1];
+    $steps[] = ['label' => 'Build', 'done' => $at >= 3];
+    $steps[] = ['label' => 'Go-Live check', 'done' => $at >= 4];
+    $steps[] = ['label' => 'Results Tracking', 'done' => license_monitoring($license)];
+    // The first step not done is "now".
+    foreach ($steps as $i => $st) {
+        if (!$st['done']) {
+            $steps[$i]['now'] = true;
+            break;
+        }
+    }
+    return $steps;
+}
+
+/* ------------------------------------------------------------------ */
+/* Customer data: download and delete                                  */
+/* ------------------------------------------------------------------ */
+
+function export_customer_data(array $license): array
+{
+    $lid = (int) $license['id'];
+    $reports = db()->prepare('SELECT kind, content, created_at FROM reports WHERE license_id = ? ORDER BY id');
+    $reports->execute([$lid]);
+    return [
+        'exportedAt' => now_iso(),
+        'company'    => $license['company'],
+        'email'      => $license['email'],
+        'plan'       => plan_name($license),
+        'profile'    => profile_data($lid),
+        'audits'     => array_map(fn($a) => $a['data'] + ['receivedAt' => $a['created_at']], list_audits($lid)),
+        'reports'    => $reports->fetchAll(),
+        'people'     => array_map(fn($d) => ['role' => $d['role_tag'], 'joined' => $d['first_seen'], 'lastActive' => $d['last_seen']], list_devices($lid)),
+    ];
+}
+
+/** Deletes the company's audit data. Keeps only the purchase record (needed for receipts and refunds). */
+function delete_customer_data(array $license): void
+{
+    $lid = (int) $license['id'];
+    $pdo = db();
+    foreach (['audits', 'profiles', 'reports', 'devices', 'feedback'] as $table) {
+        $pdo->prepare("DELETE FROM $table WHERE license_id = ?")->execute([$lid]);
+    }
+    $pdo->prepare("UPDATE licenses SET status = 'deleted', updated_at = ? WHERE id = ?")->execute([now_iso(), $lid]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin scoreboard                                                    */
+/* ------------------------------------------------------------------ */
+
+function scoreboard(): array
+{
+    $pdo = db();
+    $one = fn(string $sql) => (int) $pdo->query($sql)->fetchColumn();
+    $plans = [];
+    foreach ($pdo->query('SELECT plan, COUNT(*) AS n FROM licenses GROUP BY plan')->fetchAll() as $r) {
+        $plans[$r['plan']] = (int) $r['n'];
+    }
+    $nps = $pdo->query('SELECT nps FROM feedback WHERE nps IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN);
+    $npsScore = null;
+    if ($nps) {
+        $prom = count(array_filter($nps, fn($n) => (int) $n >= 9));
+        $det  = count(array_filter($nps, fn($n) => (int) $n <= 6));
+        $npsScore = (int) round(100 * ($prom - $det) / count($nps));
+    }
+    $acc = [];
+    foreach ($pdo->query("SELECT accurate, COUNT(*) AS n FROM feedback WHERE accurate <> '' GROUP BY accurate")->fetchAll() as $r) {
+        $acc[$r['accurate']] = (int) $r['n'];
+    }
+    $accTotal = array_sum($acc);
+    $leads    = $one('SELECT COUNT(*) FROM leads');
+    $fallback = $one("SELECT COUNT(*) FROM leads WHERE agent = 'Workflow Agent'");
+    $withAgent = $one("SELECT COUNT(*) FROM leads WHERE agent <> ''");
+
+    // Domains the tool list doesn't recognise yet (from team audits).
+    $unknown = [];
+    foreach ($pdo->query('SELECT payload FROM audits ORDER BY id DESC LIMIT 300')->fetchAll(PDO::FETCH_COLUMN) as $raw) {
+        foreach ((json_decode((string) $raw, true)['softwareUsage'] ?? []) as $u) {
+            if (tool_info((string) $u['domain'])['category'] === 'other') {
+                $unknown[$u['domain']] = ($unknown[$u['domain']] ?? 0) + (float) $u['activeMinutes'];
+            }
+        }
+    }
+    arsort($unknown);
+
+    return [
+        'free_audits'   => $leads,
+        'purchases'     => array_sum($plans),
+        'by_plan'       => $plans,
+        'reports'       => $one("SELECT COUNT(DISTINCT license_id) FROM reports WHERE kind = 'ai'"),
+        'final_plans'   => $one("SELECT COUNT(DISTINCT license_id) FROM reports WHERE kind = 'final'"),
+        'tracking'      => $one("SELECT COUNT(*) FROM licenses WHERE monitor_status = 'active'"),
+        'wants_help'    => $one('SELECT COUNT(*) FROM feedback WHERE wants_help = 1'),
+        'surveys'       => $one('SELECT COUNT(*) FROM feedback'),
+        'nps'           => $npsScore,
+        'nps_count'     => count($nps),
+        'accuracy'      => $accTotal ? (int) round(100 * (($acc['spot_on'] ?? 0) + 0.5 * ($acc['partly'] ?? 0)) / $accTotal) : null,
+        'fallback_rate' => $withAgent ? (int) round(100 * $fallback / $withAgent) : null,
+        'unknown_tools' => array_slice($unknown, 0, 10, true),
+        'conversion'    => $leads ? min(100, (int) round(100 * array_sum($plans) / $leads)) : null,
+    ];
 }

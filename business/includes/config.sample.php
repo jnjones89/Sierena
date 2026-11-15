@@ -13,10 +13,12 @@ return [
     'site_url'   => 'https://sirenaflow.com/business',
     'brand_name' => 'SirenaFlow',
 
-    // ---- One-time Team Audits, priced by team size ----
+    // ---- One-time audits: Solo, then Team sizes ----
     // Create one ONE-TIME price per plan in Stripe (Product catalog) and paste its Price ID.
-    // "people" = how many teammates' extensions can use the key.
+    // "people" = how many computers can use the key. "solo" = one-person wording in the portal.
+    // "final_plan" = whether a final plan written by your team is included (default true).
     'plans' => [
+        'solo'    => ['name' => 'Solo Audit',         'people' => 1,  'price_label' => '$97',  'stripe_price_id' => 'price_REPLACE_ME', 'solo' => true, 'final_plan' => false],
         'starter' => ['name' => 'Starter Team Audit', 'people' => 5,  'price_label' => '$297', 'stripe_price_id' => 'price_REPLACE_ME'],
         'team'    => ['name' => 'Team Audit',         'people' => 15, 'price_label' => '$497', 'stripe_price_id' => 'price_REPLACE_ME'],
         'company' => ['name' => 'Company Audit',      'people' => 50, 'price_label' => '$997', 'stripe_price_id' => 'price_REPLACE_ME'],
@@ -31,6 +33,9 @@ return [
         'price_label'     => '$97 / month',
         'stripe_price_id' => 'price_REPLACE_ME',
     ],
+
+    // Shown on the pricing page, success page and Help. Customers request refunds from Help in the portal.
+    'guarantee' => 'Not happy with your audit? Ask for your money back within 30 days. No questions asked.',
 
     // Where customers book a call to have the agents built (Calendly, GoHighLevel, etc.).
     'booking_url' => 'https://sirenaflow.com/#contact',
@@ -50,6 +55,18 @@ return [
     'anthropic_effort'  => 'high',
     // Instant reports a customer can generate per day.
     'reports_per_day'   => 5,
+
+    // ---- GoHighLevel (optional) ----
+    // Each destination is a sub-account with its own Private Integration token
+    // (GHL sub-account → Settings → Private Integrations; scopes: contacts.write, locations/customFields.readonly + .write).
+    // 'events' => 'all', or a list. Leave a token empty to switch that destination off.
+    // Events (tags): free_audit (swa-free-audit), team_audit_purchased (swa-team-audit-purchased + swa-plan-<plan>),
+    // first_audit_received, instant_report_ready, final_plan_sent, results_tracking_on/_canceled,
+    // wants_help, refund_requested, profile_updated (fields only, no tag).
+    'ghl' => [
+        'sirena' => ['api_token' => '', 'location_id' => 'sR58k68dGcC4kxfeJudZ', 'events' => 'all'],
+        'alja'   => ['api_token' => '', 'location_id' => 'xAlVOKt0OfFGc5f5WPAh', 'events' => ['instant_report_ready', 'final_plan_sent', 'wants_help']],
+    ],
 
     // ---- MySQL (Hostinger hPanel → Databases → MySQL Databases) ----
     'db_dsn'  => 'mysql:host=localhost;dbname=u123456789_swa;charset=utf8mb4',

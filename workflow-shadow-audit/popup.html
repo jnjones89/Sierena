@@ -47,6 +47,14 @@
     details.checked ul { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
     details.checked ul.checks li::before { content: "✓ "; color: var(--green); font-weight: 700; }
     details.checked ul.nots li::before { content: "✕ "; color: var(--red); font-weight: 700; }
+    .survey .sq { margin: 6px 0 4px; font-weight: 600; font-size: 12.5px; }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .seg button { width: auto; flex: 1 1 auto; padding: 6px 8px; font-size: 12px; font-weight: 600; }
+    .seg.nps button { flex: 0 0 calc((100% - 40px) / 11); padding: 6px 0; }
+    .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .survey textarea { width: 100%; margin: 8px 0; font: inherit; font-size: 12.5px; padding: 8px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--panel); color: var(--text); resize: vertical; }
+    #surveyThanks { margin: 0; font-weight: 600; color: var(--green); }
     .nudge { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: #fff4e0; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; }
 
     header { display: flex; flex-direction: column; gap: 6px; }
@@ -204,7 +212,7 @@
       </div>
 
       <div id="sendNudge" class="nudge hidden">
-        <div><b>Your company is waiting for your audit.</b><br><span class="muted small">Send it when you're ready. You can keep tracking after.</span></div>
+        <div><b id="nudgeTitle">Your company is waiting for your audit.</b><br><span class="muted small">Send it when you're ready. You can keep tracking after.</span></div>
         <button id="nudgeSendBtn" class="primary small-btn" type="button">Send</button>
       </div>
 
@@ -238,6 +246,25 @@
       </div>
       <div id="resultsBody"></div>
 
+      <div id="surveyBox" class="result survey hidden">
+        <div class="label">Quick question</div>
+        <div id="surveyForm">
+          <p class="sq">Did this find something real?</p>
+          <div class="seg" data-q="accurate">
+            <button type="button" data-v="spot_on">Spot on</button><button type="button" data-v="partly">Partly</button><button type="button" data-v="not_really">Not really</button>
+          </div>
+          <p class="sq">How likely are you to recommend it? <span class="muted small">0–10</span></p>
+          <div class="seg nps" data-q="nps"></div>
+          <p class="sq">Want help fixing it?</p>
+          <div class="seg" data-q="wantsHelp">
+            <button type="button" data-v="yes">Yes, reach out</button><button type="button" data-v="no">Not now</button>
+          </div>
+          <textarea id="surveyComment" rows="2" maxlength="1000" placeholder="What did we miss? (optional)"></textarea>
+          <button id="surveySend" class="primary" type="button" disabled>Send</button>
+        </div>
+        <p id="surveyThanks" class="hidden">Thank you!</p>
+      </div>
+
       <div class="actions">
         <button id="copyPromptBtn" type="button">Copy report prompt for ChatGPT or Claude</button>
         <button id="downloadBtn" type="button">Download my data</button>
@@ -245,19 +272,22 @@
         <div id="liteDoneBox" class="actions">
           <p class="muted small" style="text-align:center">Your free audit is complete.</p>
           <div class="result team-offer">
-            <div class="label">What a Team Audit adds</div>
+            <div class="label">Keep going with a paid audit</div>
+            <p class="small"><b>Solo Audit:</b> just you, with no time limit. Keeps the hours you already tracked.</p>
+            <p class="small"><b>Team Audit:</b> your whole team, plus a final plan from our team.</p>
+            <div class="label" style="margin-top:4px">Both include</div>
             <ul class="checks">
-              <li>Your whole team, not just you</li>
               <li>Back-Office Check: processes, SOPs, follow-up, contracts and data security</li>
               <li id="industryLine">Checks for your industry</li>
-              <li>An instant AI report, plus a final plan from our team</li>
-              <li>We can build the agents for you</li>
+              <li>Your tools and what they really cost</li>
+              <li>An instant AI report, and we can build the agents for you</li>
+              <li>Money-back guarantee</li>
             </ul>
             <label class="field">Your industry
               <select class="industry-select"></select>
             </label>
           </div>
-          <button class="upgrade upgrade-btn" type="button">Audit my whole team →</button>
+          <button class="upgrade upgrade-btn" type="button">See paid audits →</button>
         </div>
 
         <div id="businessBox" class="actions hidden">
@@ -297,7 +327,7 @@
       <span id="bizText">Team Audit</span>&nbsp;·&nbsp;<button id="bizChange" class="link" type="button">Change key</button>
     </div>
 
-    <footer>Read-only. We only see website names and time spent, never what you type, read or click.<br>Nothing on your computer is changed. Remove it any time from Chrome.</footer>
+    <footer>Read-only. We only see website names and time spent, never what you type, read or click.<br>Nothing on your computer is changed. Remove it any time from Chrome. · <button id="helpLink" class="link" type="button">Help</button></footer>
   </div>
 
   <script src="industries.js"></script>

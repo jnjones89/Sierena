@@ -22,6 +22,7 @@ const PORTAL_PAGES = [
     'team'      => 'Your team',
     'report'    => 'Report',
     'numbers'   => 'Numbers',
+    'help'      => 'Help',
 ];
 
 function portal_url(string $page = 'home', array $query = []): string
@@ -61,6 +62,36 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('home');
     }
 
+    if ($action === 'request_refund' && $license) {
+        $reason = trim(mb_substr((string) ($_POST['reason'] ?? ''), 0, 1000));
+        log_issue('refund', ($license['company'] ?: $license['email']) . ' asked for a refund. Reason: ' . ($reason ?: '(none given)'));
+        send_mail((string) cfg('owner_email'), 'Refund request: ' . ($license['company'] ?: $license['email']),
+            "{$license['company']} ({$license['email']}) asked for their money back.\n\nReason: " . ($reason ?: '(none given)')
+            . "\nPlan: " . plan_name($license) . "\nBought: " . format_date($license['created_at'])
+            . "\n\nRefund it in Stripe (Payments → find the payment → Refund) and reply to them.\n");
+        ghl_event('refund_requested', ghl_license_contact($license), ghl_license_fields($license));
+        go('help', "We got your request. We'll refund you and email you within 2 business days.");
+    }
+
+    if ($action === 'download_data' && $license) {
+        $json = json_encode(export_customer_data($license), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        header('Content-Type: application/json; charset=utf-8');
+        header('Content-Disposition: attachment; filename="workflow-shadow-audit-' . preg_replace('/[^a-z0-9]+/', '-', strtolower($license['company'] ?: 'data')) . '.json"');
+        echo $json;
+        exit;
+    }
+
+    if ($action === 'delete_data' && $license) {
+        if (trim((string) ($_POST['confirm'] ?? '')) !== 'DELETE') {
+            go('help', 'To delete your data, type DELETE in the box.', 'error');
+        }
+        delete_customer_data($license);
+        log_issue('data_deleted', ($license['company'] ?: $license['email']) . ' deleted their data.');
+        $_SESSION = [];
+        session_regenerate_id(true);
+        go('home', 'Your data has been deleted.');
+    }
+
     if ($action === 'logout') {
         $_SESSION = [];
         session_regenerate_id(true);
@@ -77,6 +108,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($action === 'save_profile') {
         $saved = save_profile($lid, $_POST);
+        ghl_event('profile_updated', ghl_license_contact(find_license_by_id($lid)), ghl_license_fields(find_license_by_id($lid)),
+            ghl_industry_tag($saved['industry']));
         send_mail(
             (string) cfg('owner_email'),
             'Business profile updated: ' . ($saved['company'] ?: $license['email']),
@@ -133,6 +166,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('tools');
     }
 
+    if ($action === 'owner_survey') {
+        if (!feedback_given($lid, 'owner')) {
+            $wants = ($_POST['wants_help'] ?? '') === 'yes';
+            save_feedback([
+                'context' => 'owner', 'email' => $license['email'], 'license_id' => $lid,
+                'accurate' => (string) ($_POST['accurate'] ?? ''), 'nps' => $_POST['nps'] ?? null,
+                'wants_help' => $wants, 'comment' => (string) ($_POST['comment'] ?? ''),
+                'industry' => load_profile($lid)['industry'],
+            ]);
+            ghl_event($wants ? 'wants_help' : 'profile_updated', ghl_license_contact($license), [
+                'swa_nps' => ($_POST['nps'] ?? '') !== '' ? (int) $_POST['nps'] : null,
+                'swa_accuracy' => ACCURACY_ANSWERS[(string) ($_POST['accurate'] ?? '')] ?? null,
+            ]);
+            if (trim((string) ($_POST['comment'] ?? '')) !== '' || ($_POST['accurate'] ?? '') !== 'spot_on') {
+                send_mail((string) cfg('owner_email'), 'Report feedback: ' . ($license['company'] ?: $license['email']),
+                    'Accuracy: ' . (ACCURACY_ANSWERS[(string) ($_POST['accurate'] ?? '')] ?? '-') . "\nRecommend: " . ($_POST['nps'] ?? '-')
+                    . "\nWhat to correct: " . ($_POST['comment'] ?? '') . "\n\nUse this in the final plan: " . site_url('admin.php?view=' . $lid) . "\n");
+            }
+        }
+        go('report', 'Thank you. We use this when we write your final plan.');
+    }
+
     if ($action === 'upload_audit') {
         $file = $_FILES['audit_file'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || $file['size'] > 2_000_000) {
@@ -171,6 +226,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             save_report($lid, 'ai', $result['text'], $result['model']);
         } catch (Throwable $e) {
             error_log('[SWA report] ' . $e->getMessage());
+            log_issue('report', ($license['company'] ?: $license['email']) . ': ' . $e->getMessage());
             start_session();
             go('report', "We couldn't write your report right now. Please try again in a few minutes.", 'error');
         }
@@ -180,6 +236,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             "{$license['company']} ({$license['email']}) just generated their instant AI report.\n"
             . 'Follow up with the final plan here: ' . site_url('admin.php?view=' . $lid) . "\n"
         );
+        $sum = checklist_summary(load_profile($lid)['industry'] ?: 'other', load_checklist($lid));
+        ghl_event('instant_report_ready', ghl_license_contact($license),
+            ['swa_backoffice_score' => $sum['score']] + ghl_license_fields($license));
         start_session();
         go('report', 'Your instant AI report is ready.');
     }
@@ -236,12 +295,18 @@ $monCfg     = (array) cfg('monitoring');
 $company    = $profile['company'] ?: ($license['company'] ?: 'your business');
 $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
+$solo       = license_is_solo($license);
+$coverage   = data_coverage($license, $audits, $devices);
+$finalIncluded = plan_includes_final_plan($license);
 $dis        = $active ? '' : ' disabled';
 
 /* ----------------------------- Layout ---------------------------- */
 
 echo '<nav class="tabs" aria-label="Portal">';
 foreach (PORTAL_PAGES as $key => $label) {
+    if ($key === 'team' && $solo) {
+        $label = 'Your extension';
+    }
     echo '<a href="' . h(portal_url($key)) . '"' . ($key === $page ? ' class="on" aria-current="page"' : '') . '>' . h($label) . '</a>';
 }
 echo '</nav>';
@@ -279,7 +344,7 @@ if ($page === 'home'):
     $steps = [
         [
             'done'  => $businessDone, 'title' => 'Tell us about your business',
-            'text'  => $businessDone ? 'Done. You can update it any time.' : 'Your industry, team size and social media. About 3 minutes.',
+            'text'  => $businessDone ? 'Done. You can update it any time.' : ($solo ? 'Your industry, website and social media. About 3 minutes.' : 'Your industry, team size and social media. About 3 minutes.'),
             'page'  => 'business', 'cta' => $businessDone ? 'Edit' : 'Start',
         ],
         [
@@ -287,7 +352,11 @@ if ($page === 'home'):
             'text'  => count($tools) > 0 ? count($tools) . ' tools · ' . money($toolsSum['monthly']) . ' a month.' : 'Name and monthly cost. We show which ones your team actually uses. About 3 minutes.',
             'page'  => 'tools', 'cta' => count($tools) > 0 ? 'Edit' : 'Start',
         ],
-        [
+        $solo ? [
+            'done'  => count($audits) > 0, 'title' => 'Run the audit on your computer',
+            'text'  => count($audits) > 0 ? $coverage['text'] : 'Paste your key into the extension, work like normal for a few days, then send it here.',
+            'page'  => 'team', 'cta' => count($audits) > 0 ? 'View' : 'How to connect',
+        ] : [
             'done'  => $teamDone, 'title' => 'Get your team connected',
             'text'  => count($devices) . ' of ' . (int) $license['seats'] . ' people connected · ' . count($audits) . ' audit' . (count($audits) === 1 ? '' : 's') . ' sent in.',
             'page'  => 'team', 'cta' => $teamDone ? 'View team' : 'Invite your team',
@@ -299,12 +368,20 @@ if ($page === 'home'):
         ],
         [
             'done'  => $reportDone, 'title' => 'Get your report',
-            'text'  => $finalPlan ? 'Your final plan from our team is ready.' : ($aiReport ? 'Your instant AI report is ready. Our team is preparing your final plan.' : 'Ready as soon as your team sends in their audits.'),
+            'text'  => $finalPlan ? 'Your final plan from our team is ready.'
+                : ($aiReport ? ($finalIncluded ? 'Your instant AI report is ready. Our team is preparing your final plan.' : 'Your instant AI report is ready. Book a free call to go over it.')
+                : ($solo ? 'Ready as soon as you send in your audit.' : 'Ready as soon as your team sends in their audits.')),
             'page'  => 'report', 'cta' => $reportDone ? 'Read it' : 'Open',
         ],
     ];
 ?>
   <h1>Hi, <?= h($company) ?></h1>
+  <?php $journey = journey($license, (bool) $audits, (bool) $aiReport, (bool) $finalPlan); ?>
+  <nav class="journey-bar" aria-label="What happens next">
+    <?php foreach ($journey as $j): ?>
+      <span class="<?= $j['done'] ? 'done' : (!empty($j['now']) ? 'now' : '') ?>"><?= $j['done'] ? '✓ ' : '' ?><?= h($j['label']) ?></span>
+    <?php endforeach; ?>
+  </nav>
   <p class="lead"><?= h(plan_name($license)) ?> · <?= $monitoring ? 'Results Tracking is on' : 'open until ' . h(format_date($license['access_until'])) ?></p>
   <?php
     $daysLeft = $license['access_until'] ? (int) ceil((strtotime((string) $license['access_until']) - time()) / 86400) : 0;
@@ -546,6 +623,29 @@ elseif ($page === 'tools'):
 
 <?php
 /* ------------------------------ Team ----------------------------- */
+elseif ($page === 'team' && $solo):
+?>
+  <h1>Your extension</h1>
+  <p class="lead">Connect the extension on your computer, work like normal for a few days, then send your audit here.</p>
+  <section class="card">
+    <ol class="steps">
+      <li>Open the <b>Workflow Shadow Audit</b> extension in Chrome<?= cfg_opt('extension_url', '') ? ' (<a href="' . h((string) cfg_opt('extension_url', '')) . '" target="_blank" rel="noopener">add it here</a>)' : '' ?>.</li>
+      <li>Click <b>Have a team key?</b> and paste your key:</li>
+    </ol>
+    <div class="key" id="teamKey"><?= h($license['license_key']) ?></div>
+    <button class="btn primary" type="button" data-copy="teamKey">Copy key</button>
+    <ol class="steps" start="3">
+      <li>Turn tracking on and work like normal. There's no time limit, so a full week gives the clearest picture.</li>
+      <li>Click <b>Send to my Business Portal</b> whenever you like. You can send again later.</li>
+    </ol>
+    <p class="muted small">Already ran the free audit? Your tracked hours carry over when you paste the key.</p>
+  </section>
+  <section class="card">
+    <h2>Received</h2>
+    <p><?= h($coverage['text']) ?></p>
+  </section>
+
+<?php
 elseif ($page === 'team'):
     $invite = "Hi team! We're running a quick audit to find work we can automate. It's private: it only sees website names and time spent, never what you type.\n\n"
         . "It takes 2 minutes to join: " . join_url($license) . "\n\nAfter that, just work like normal. Thanks!";
@@ -617,6 +717,10 @@ elseif ($page === 'team'):
 elseif ($page === 'report'):
 ?>
   <h1>Your report</h1>
+  <?php if ($audits): ?>
+    <p class="coverage<?= $coverage['enough'] ? '' : ' thin' ?>"><?= h($coverage['text']) ?>
+      <?php if (!$coverage['enough']): ?> For a sharper report, aim for at least <?= (int) $coverage['minimum'] ?> hours.<?php endif; ?></p>
+  <?php endif; ?>
   <?php if ($finalPlan): ?>
     <section class="card">
       <span class="badge green">Final plan from our team · <?= h(format_date($finalPlan['created_at'])) ?></span>
@@ -630,11 +734,11 @@ elseif ($page === 'report'):
       <?= render_markdown($aiReport['content']) ?>
     <?php elseif (!$audits): ?>
       <h2>Almost there</h2>
-      <p class="muted">Your report is ready as soon as your team sends in their audits.
-        <a href="<?= h(portal_url('team')) ?>">Invite your team</a>.</p>
+      <p class="muted"><?= $solo ? 'Your report is ready as soon as you send in your audit from the extension.' : 'Your report is ready as soon as your team sends in their audits.' ?>
+        <a href="<?= h(portal_url('team')) ?>"><?= $solo ? 'How to connect' : 'Invite your team' ?></a>.</p>
     <?php else: ?>
-      <h2>Your team's results are in</h2>
-      <p class="muted">Get your instant AI report now. It takes 1–2 minutes. Our team then follows up with your final plan.</p>
+      <h2><?= $solo ? 'Your results are in' : "Your team's results are in" ?></h2>
+      <p class="muted">Get your instant AI report now. It takes 1–2 minutes. <?= $finalIncluded ? 'Our team then follows up with your final plan.' : 'Then book a free call to go over it with us.' ?></p>
       <?php if ($summary['answered'] === 0): ?>
         <p class="note">Tip: <a href="<?= h(portal_url('questions')) ?>">answer the quick questions</a> first so your report covers your back office too.</p>
       <?php endif; ?>
@@ -652,10 +756,84 @@ elseif ($page === 'report'):
     <p class="muted small">If we build your agents, your audit price is credited toward the build.</p>
   </section>
 
+  <?php if ($aiReport && !feedback_given($lid, 'owner')): ?>
+    <section class="card" id="survey">
+      <h2>Is this report right?</h2>
+      <p class="muted">Two quick questions. We use your answers when we <?= $finalIncluded ? 'write your final plan' : 'go over it with you' ?>.</p>
+      <form method="post" action="portal.php">
+        <?= csrf_field() ?><input type="hidden" name="action" value="owner_survey">
+        <p class="q">Did it find something real?</p>
+        <div class="choice">
+          <?php foreach (ACCURACY_ANSWERS as $k => $lbl): ?><label class="pill-radio"><input type="radio" name="accurate" value="<?= h($k) ?>" required><span><?= h($lbl) ?></span></label><?php endforeach; ?>
+        </div>
+        <p class="q">How likely are you to recommend us? <span class="muted small">(0 = not at all, 10 = very)</span></p>
+        <div class="choice nps">
+          <?php for ($n = 0; $n <= 10; $n++): ?><label class="pill-radio"><input type="radio" name="nps" value="<?= $n ?>"><span><?= $n ?></span></label><?php endfor; ?>
+        </div>
+        <label>What should we correct or add? <span class="hint">Optional</span><textarea name="comment" maxlength="2000" rows="3"></textarea></label>
+        <label class="check-line"><input type="checkbox" name="wants_help" value="yes"> I'd like help fixing this</label>
+        <button class="btn primary" type="submit">Send</button>
+      </form>
+    </section>
+  <?php endif; ?>
+
   <details>
     <summary>Copy the report prompt for ChatGPT or Claude</summary>
     <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist, $tools)); ?>
   </details>
+
+<?php
+/* ------------------------------ Help ----------------------------- */
+elseif ($page === 'help'):
+?>
+  <h1>Help</h1>
+  <section class="card">
+    <h2>Common questions</h2>
+    <?php include __DIR__ . '/includes/faq.php'; ?>
+  </section>
+  <section class="card">
+    <h2>Talk to us</h2>
+    <p class="muted">Questions, or want help with your plan?</p>
+    <div class="actions">
+      <a class="btn primary" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call</a>
+      <span class="muted">or email <b><?= h((string) cfg('owner_email')) ?></b></span>
+    </div>
+  </section>
+  <section class="card" id="refund">
+    <h2>Our guarantee</h2>
+    <p><?= h(guarantee_text()) ?></p>
+    <details>
+      <summary>Ask for your money back</summary>
+      <form method="post" action="portal.php">
+        <?= csrf_field() ?><input type="hidden" name="action" value="request_refund">
+        <label>Anything we should know? <span class="hint">Optional</span><textarea name="reason" maxlength="1000" rows="3"></textarea></label>
+        <button class="btn" type="submit">Request a refund</button>
+      </form>
+    </details>
+  </section>
+  <section class="card">
+    <h2>Your data</h2>
+    <p class="muted">Download everything we have about your audit, or delete it.</p>
+    <form class="inline" method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="download_data"><button class="btn" type="submit">Download my data</button></form>
+    <details>
+      <summary>Delete my company's data</summary>
+      <p class="muted small">This deletes your audits, answers, tools, reports and connected computers. It can't be undone. We keep only your purchase record for receipts.</p>
+      <form method="post" action="portal.php">
+        <?= csrf_field() ?><input type="hidden" name="action" value="delete_data">
+        <label>Type DELETE to confirm<input type="text" name="confirm" autocomplete="off" required></label>
+        <button class="btn danger" type="submit">Delete everything</button>
+      </form>
+    </details>
+  </section>
+  <section class="card">
+    <h2>Account</h2>
+    <div class="actions">
+      <?php if (!empty($license['stripe_customer_id'])): ?>
+        <form class="inline" method="post" action="billing.php"><?= csrf_field() ?><button class="btn" type="submit">Billing &amp; invoices</button></form>
+      <?php endif; ?>
+      <form class="inline" method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="logout"><button class="btn" type="submit">Sign out</button></form>
+    </div>
+  </section>
 
 <?php
 /* ---------------------------- Numbers ---------------------------- */
