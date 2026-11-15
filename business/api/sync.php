@@ -32,7 +32,7 @@ if ($clean === null) {
     json_out(['ok' => false, 'error' => 'Audit data is not in the expected format.'], 422);
 }
 
-$auditId = store_audit((int) $license['id'], $clean);
+$auditId = store_audit((int) $license['id'], $clean, $deviceId);
 
 json_out([
     'ok'        => true,

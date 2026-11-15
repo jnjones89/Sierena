@@ -1,6 +1,9 @@
 <?php
 /*
  * Business Portal — customers sign in with email + team key.
+ *
+ * Pages (?page=…): home · business · questions · team · report · numbers
+ * Home shows 4 simple steps; each page does one thing.
  */
 declare(strict_types=1);
 require __DIR__ . '/includes/lib.php';
@@ -11,10 +14,27 @@ start_session();
 $flash = $_SESSION['flash'] ?? null;
 unset($_SESSION['flash']);
 
-function flash_redirect(string $msg, string $kind = 'ok', string $anchor = ''): never
+const PORTAL_PAGES = [
+    'home'      => 'Home',
+    'business'  => 'Your business',
+    'questions' => 'Questions',
+    'team'      => 'Your team',
+    'report'    => 'Report',
+    'numbers'   => 'Numbers',
+];
+
+function portal_url(string $page = 'home', array $query = []): string
 {
-    $_SESSION['flash'] = ['msg' => $msg, 'kind' => $kind];
-    redirect(site_url('portal.php') . ($anchor ? '#' . $anchor : ''));
+    $query = $page === 'home' ? $query : ['page' => $page] + $query;
+    return site_url('portal.php') . ($query ? '?' . http_build_query($query) : '');
+}
+
+function go(string $page, string $msg = '', string $kind = 'ok', array $query = []): never
+{
+    if ($msg !== '') {
+        $_SESSION['flash'] = ['msg' => $msg, 'kind' => $kind];
+    }
+    redirect(portal_url($page, $query));
 }
 
 $license = isset($_SESSION['license_id']) ? find_license_by_id((int) $_SESSION['license_id']) : null;
@@ -28,29 +48,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($action === 'login') {
         if (!rate_limit('login', 10, 600)) {
-            flash_redirect('Too many sign-in attempts. Please wait 10 minutes.', 'error');
+            go('home', 'Too many tries. Please wait 10 minutes.', 'error');
         }
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $found = find_license_by_key((string) ($_POST['key'] ?? ''));
         if (!$found || !hash_equals(strtolower($found['email']), $email)) {
-            flash_redirect('Email and key do not match.', 'error');
+            go('home', "That email and team key don't match. Check both and try again.", 'error');
         }
         session_regenerate_id(true);
         $_SESSION['license_id'] = (int) $found['id'];
-        flash_redirect('Welcome back' . ($found['company'] ? ', ' . $found['company'] : '') . '.');
+        go('home');
     }
 
     if ($action === 'logout') {
         $_SESSION = [];
         session_regenerate_id(true);
-        flash_redirect('Signed out.');
+        go('home', 'You are signed out.');
     }
 
     if (!$license) {
-        flash_redirect('Please sign in.', 'error');
+        go('home', 'Please sign in.', 'error');
     }
     if (!$active) {
-        flash_redirect('Your audit window has ended. Turn on Results Tracking below to keep going.', 'error');
+        go('home', 'Your audit has ended. Turn on Results Tracking to keep going.', 'error');
     }
     $lid = (int) $license['id'];
 
@@ -62,43 +82,60 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             "A customer updated their business profile.\n\nCompany: {$saved['company']}\nEmail: {$license['email']}\n\nReview it: "
             . site_url('admin.php?view=' . $lid) . "\n"
         );
-        flash_redirect('Business profile saved.', 'ok', 'profile');
+        go('home', 'Saved. Thanks!');
     }
 
-    if ($action === 'save_checklist') {
+    if ($action === 'save_industry') {
+        $industry = (string) ($_POST['industry'] ?? '');
+        if (!isset(industries()[$industry])) {
+            go('questions', 'Please pick your industry.', 'error');
+        }
+        write_profile_data($lid, array_merge(profile_data($lid), ['industry' => $industry]));
+        go('questions', '', 'ok', ['q' => 0]);
+    }
+
+    if ($action === 'answer') {
         $industry = load_profile($lid)['industry'] ?: 'other';
-        $answers  = save_checklist($lid, $industry, $_POST);
-        $summary  = checklist_summary($industry, $answers);
-        flash_redirect('Back-Office Check saved: ' . $summary['answered'] . ' of ' . $summary['total'] . ' answered.', 'ok', 'backoffice');
+        $items    = array_values(checklist_items($industry));
+        $q        = max(0, (int) ($_POST['q'] ?? 0));
+        $id       = (string) ($_POST['id'] ?? '');
+        $answer   = (string) ($_POST['answer'] ?? '');
+        if (isset($items[$q]) && $items[$q]['id'] === $id && isset(CHECK_ANSWERS[$answer])) {
+            save_checklist($lid, $industry, [$id => $answer]);
+        }
+        if ($q + 1 >= count($items)) {
+            go('home', "That's all the questions. Thank you!");
+        }
+        go('questions', '', 'ok', ['q' => $q + 1]);
     }
 
     if ($action === 'upload_audit') {
         $file = $_FILES['audit_file'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || $file['size'] > 2_000_000) {
-            flash_redirect('Please choose an exported audit file (max 2 MB).', 'error', 'team');
+            go('team', 'Please choose an audit file (2 MB max).', 'error');
         }
         $clean = sanitize_audit_payload(json_decode((string) file_get_contents($file['tmp_name']), true));
         if ($clean === null) {
-            flash_redirect('That file is not a Workflow Shadow Audit export.', 'error', 'team');
+            go('team', "That file isn't a Workflow Shadow Audit file.", 'error');
         }
         store_audit($lid, $clean);
-        flash_redirect('Audit uploaded (' . $clean['auditMetadata']['roleTag'] . ').', 'ok', 'team');
+        go('team', 'Audit added (' . $clean['auditMetadata']['roleTag'] . ').');
     }
 
     if ($action === 'delete_audit') {
         db()->prepare('DELETE FROM audits WHERE id = ? AND license_id = ?')->execute([(int) ($_POST['audit_id'] ?? 0), $lid]);
-        flash_redirect('Audit deleted.', 'ok', 'team');
+        go('team', 'Audit removed.');
     }
 
     if ($action === 'generate_report') {
         if (!ai_reports_enabled()) {
-            flash_redirect('The instant AI report is not available right now. Our team will send your final plan.', 'error', 'report');
+            go('report', 'The instant AI report is not available right now. Our team will send your final plan.', 'error');
         }
         if (!list_audits($lid)) {
-            flash_redirect('Sync at least one audit first.', 'error', 'report');
+            go('report', 'We need at least one audit from your team first.', 'error');
         }
         if (reports_today($lid) >= (int) cfg('reports_per_day')) {
-            flash_redirect('You have reached today\'s report limit. Try again tomorrow.', 'error', 'report');
+            go('report', "You've reached today's limit. Please try again tomorrow.", 'error');
         }
         // Writing the report can take a minute or two.
         @set_time_limit(300);
@@ -111,103 +148,389 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         } catch (Throwable $e) {
             error_log('[SWA report] ' . $e->getMessage());
             start_session();
-            flash_redirect('We could not write your instant AI report right now. Please try again in a few minutes.', 'error', 'report');
+            go('report', "We couldn't write your report right now. Please try again in a few minutes.", 'error');
         }
         send_mail(
             (string) cfg('owner_email'),
             'Instant report generated: ' . ($license['company'] ?: $license['email']),
             "{$license['company']} ({$license['email']}) just generated their instant AI report.\n"
-            . "Follow up with the full plan here: " . site_url('admin.php?view=' . $lid) . "\n"
+            . 'Follow up with the final plan here: ' . site_url('admin.php?view=' . $lid) . "\n"
         );
         start_session();
-        flash_redirect('Your instant AI report is ready.', 'ok', 'report');
+        go('report', 'Your instant AI report is ready.');
     }
 
-    flash_redirect('Unknown action.', 'error');
+    go('home', 'Something went wrong. Please try again.', 'error');
 }
 
-/* ----------------------------- View ------------------------------ */
+/* ----------------------------- Sign in ----------------------------- */
 
 render_header('Business Portal');
 
-if ($flash) {
-    echo '<div class="alert ' . ($flash['kind'] === 'error' ? 'error' : 'ok') . '">' . h($flash['msg']) . '</div>';
-}
+$showFlash = function () use ($flash) {
+    if ($flash) {
+        echo '<div class="alert ' . ($flash['kind'] === 'error' ? 'error' : 'ok') . '">' . h($flash['msg']) . '</div>';
+    }
+};
 
 if (!$license):
+    $showFlash();
 ?>
-  <h1>Business Portal</h1>
-  <p class="lead">Sign in with the email you paid with and your team key.</p>
-  <section class="card" style="max-width:480px">
+  <h1>Sign in</h1>
+  <p class="lead">Use the email you paid with and your team key.</p>
+  <section class="card" style="max-width:460px">
     <form method="post" action="portal.php">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="login">
       <label>Email <input type="email" name="email" required autocomplete="email"></label>
-      <label>Team key <input type="text" name="key" required placeholder="AUDIT-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false"></label>
+      <label>Team key <span class="hint">It starts with AUDIT- and was in your email.</span>
+        <input type="text" name="key" required placeholder="AUDIT-XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false"></label>
       <button class="btn primary block" type="submit">Sign in</button>
     </form>
-    <p class="muted small">No key yet? <a href="./">Get a Team Audit</a>.</p>
   </section>
+  <p class="muted small">Don't have a team key yet? <a href="./">See Team Audits</a>.</p>
 <?php
     render_footer();
     exit;
 endif;
 
+/* ----------------------------- Data ------------------------------ */
+
+$page       = (string) ($_GET['page'] ?? 'home');
+$page       = isset(PORTAL_PAGES[$page]) ? $page : 'home';
 $lid        = (int) $license['id'];
 $profile    = load_profile($lid);
+$industry   = $profile['industry'] ?: 'other';
+$checklist  = load_checklist($lid);
+$summary    = checklist_summary($industry, $checklist);
 $audits     = list_audits($lid);
-$aggregate  = aggregate_audits($audits);
+$devices    = list_devices($lid);
 $aiReport   = latest_report($lid, 'ai');
 $finalPlan  = latest_report($lid, 'final');
 $monitoring = license_monitoring($license);
 $monCfg     = (array) cfg('monitoring');
-$used       = seats_used($lid);
-$industry   = $profile['industry'] ?: 'other';
-$checklist  = load_checklist($lid);
-$summary    = checklist_summary($industry, $checklist);
+$company    = $profile['company'] ?: ($license['company'] ?: 'your business');
+$dis        = $active ? '' : ' disabled';
+
+/* ----------------------------- Layout ---------------------------- */
+
+echo '<nav class="tabs" aria-label="Portal">';
+foreach (PORTAL_PAGES as $key => $label) {
+    echo '<a href="' . h(portal_url($key)) . '"' . ($key === $page ? ' class="on" aria-current="page"' : '') . '>' . h($label) . '</a>';
+}
+echo '</nav>';
+$showFlash();
+
+if (!$active) {
+    echo '<div class="note">Your audit has ended. Everything is still here to read. To keep auditing, turn on <b>'
+        . h((string) $monCfg['name']) . '</b> on the Home page.</div>';
+}
+
+function field_html(string $key, array $profile, string $dis): string
+{
+    [$label, $type, $ph] = profile_fields()[$key];
+    $val = $profile[$key] ?? '';
+    if ($type === 'select') {
+        $opts = '<option value="">Choose one…</option>';
+        foreach (industries() as $k => $lbl) {
+            $opts .= '<option value="' . h($k) . '"' . ($k === $val ? ' selected' : '') . '>' . h($lbl) . '</option>';
+        }
+        return '<label>' . h($label) . '<select name="' . h($key) . '"' . $dis . '>' . $opts . '</select></label>';
+    }
+    if ($type === 'textarea') {
+        return '<label>' . h($label) . '<textarea name="' . h($key) . '" maxlength="4000" placeholder="' . h($ph) . '"' . $dis . '>' . h($val) . '</textarea></label>';
+    }
+    return '<label>' . h($label) . '<input type="text" name="' . h($key) . '" maxlength="300" value="' . h($val) . '" placeholder="' . h($ph) . '"' . $dis . '></label>';
+}
+
+/* ------------------------------ Home ----------------------------- */
+
+if ($page === 'home'):
+    $businessDone  = $profile['company'] !== '' && $profile['industry'] !== '';
+    $teamDone      = count($devices) > 0 && count($audits) > 0;
+    $questionsDone = $summary['answered'] >= $summary['total'];
+    $reportDone    = (bool) ($finalPlan || $aiReport);
+    $steps = [
+        [
+            'done'  => $businessDone, 'title' => 'Tell us about your business',
+            'text'  => $businessDone ? 'Done. You can update it any time.' : 'Your industry, team size and social media. About 3 minutes.',
+            'page'  => 'business', 'cta' => $businessDone ? 'Edit' : 'Start',
+        ],
+        [
+            'done'  => $teamDone, 'title' => 'Get your team connected',
+            'text'  => count($devices) . ' of ' . (int) $license['seats'] . ' people connected · ' . count($audits) . ' audit' . (count($audits) === 1 ? '' : 's') . ' sent in.',
+            'page'  => 'team', 'cta' => $teamDone ? 'View team' : 'Invite your team',
+        ],
+        [
+            'done'  => $questionsDone, 'title' => 'Answer some quick questions',
+            'text'  => $summary['answered'] . ' of ' . $summary['total'] . ' answered. One question at a time, about 5 minutes.',
+            'page'  => 'questions', 'cta' => $summary['answered'] === 0 ? 'Start' : ($questionsDone ? 'Review' : 'Continue'),
+        ],
+        [
+            'done'  => $reportDone, 'title' => 'Get your report',
+            'text'  => $finalPlan ? 'Your final plan from our team is ready.' : ($aiReport ? 'Your instant AI report is ready. Our team is preparing your final plan.' : 'Ready as soon as your team sends in their audits.'),
+            'page'  => 'report', 'cta' => $reportDone ? 'Read it' : 'Open',
+        ],
+    ];
 ?>
-  <div class="actions" style="justify-content:space-between">
-    <h1 style="margin:0"><?= h($profile['company'] ?: ($license['company'] ?: 'Your company')) ?></h1>
-    <div class="actions">
-      <?php if (!empty($license['stripe_customer_id'])): ?>
-        <form class="inline" method="post" action="billing.php"><?= csrf_field() ?><button class="btn" type="submit">Billing &amp; invoices</button></form>
-      <?php endif; ?>
-      <form class="inline" method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="logout"><button class="btn" type="submit">Sign out</button></form>
+  <h1>Hi, <?= h($company) ?></h1>
+  <p class="lead"><?= h(plan_name($license)) ?> · <?= $monitoring ? 'Results Tracking is on' : 'open until ' . h(format_date($license['access_until'])) ?></p>
+
+  <?php foreach ($steps as $i => $s): ?>
+    <section class="card step<?= $s['done'] ? ' done' : '' ?>">
+      <div class="num"><?= $s['done'] ? '✓' : $i + 1 ?></div>
+      <div class="body">
+        <h2><?= h($s['title']) ?> <span class="status <?= $s['done'] ? 'done' : 'todo' ?>"><?= $s['done'] ? 'Done' : 'To do' ?></span></h2>
+        <p><?= h($s['text']) ?></p>
+      </div>
+      <div class="go"><a class="btn<?= $s['done'] ? '' : ' primary' ?>" href="<?= h(portal_url($s['page'])) ?>"><?= h($s['cta']) ?></a></div>
+    </section>
+  <?php endforeach; ?>
+
+  <section class="card">
+    <h2>Want us to build it for you?</h2>
+    <p class="muted">We build the AI agents in your plan. Your audit price is credited toward the build.</p>
+    <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call →</a>
+  </section>
+
+  <section class="card">
+    <h2><?= h((string) $monCfg['name']) ?> <span class="badge"><?= h((string) $monCfg['price_label']) ?></span></h2>
+    <?php if ($monitoring): ?>
+      <p class="muted">On. Ask your team to send in their audits each month. See the results on the <a href="<?= h(portal_url('numbers')) ?>">Numbers</a> page.</p>
+    <?php else: ?>
+      <p class="muted">After your agents are built, keep auditing every month and see what improved. Cancel any time.</p>
+      <form method="post" action="monitor.php"><?= csrf_field() ?><button class="btn" type="submit">Turn on <?= h((string) $monCfg['name']) ?></button></form>
+    <?php endif; ?>
+  </section>
+
+  <div class="actions">
+    <?php if (!empty($license['stripe_customer_id'])): ?>
+      <form class="inline" method="post" action="billing.php"><?= csrf_field() ?><button class="btn small" type="submit">Billing &amp; invoices</button></form>
+    <?php endif; ?>
+    <form class="inline" method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="logout"><button class="btn small" type="submit">Sign out</button></form>
+  </div>
+
+<?php
+/* ---------------------------- Business --------------------------- */
+elseif ($page === 'business'):
+?>
+  <h1>Your business</h1>
+  <p class="lead">Only the first four are needed. The rest helps us make your plan more specific.</p>
+  <form method="post" action="portal.php">
+    <?= csrf_field() ?><input type="hidden" name="action" value="save_profile">
+    <section class="card">
+      <div class="row">
+        <?= field_html('company', $profile, $dis) ?>
+        <?= field_html('industry', $profile, $dis) ?>
+        <?= field_html('team_size', $profile, $dis) ?>
+        <?= field_html('website', $profile, $dis) ?>
+      </div>
+    </section>
+    <section class="card">
+      <details<?= ($profile['facebook'] . $profile['instagram'] . $profile['linkedin']) !== '' ? ' open' : '' ?>>
+        <summary>Your social media (optional)</summary>
+        <div class="row">
+          <?php foreach (['facebook', 'instagram', 'linkedin', 'tiktok', 'x_twitter', 'youtube', 'google_business'] as $k) echo field_html($k, $profile, $dis); ?>
+        </div>
+        <?= field_html('other_channels', $profile, $dis) ?>
+      </details>
+    </section>
+    <section class="card">
+      <details<?= ($profile['bottlenecks'] . $profile['goals']) !== '' ? ' open' : '' ?>>
+        <summary>More about how you work (optional)</summary>
+        <?php foreach (['bottlenecks', 'goals', 'current_tools', 'departments', 'lead_sources'] as $k) echo field_html($k, $profile, $dis); ?>
+        <div class="row">
+          <?= field_html('software_budget', $profile, $dis) ?>
+          <?= field_html('hourly_cost', $profile, $dis) ?>
+        </div>
+      </details>
+    </section>
+    <?php if ($active): ?><button class="btn primary" type="submit">Save</button><?php endif; ?>
+  </form>
+
+<?php
+/* --------------------------- Questions --------------------------- */
+elseif ($page === 'questions'):
+    $items = array_values(checklist_items($industry));
+    $q     = (int) ($_GET['q'] ?? -1);
+    if (!$profile['industry']):
+?>
+  <h1>Quick questions</h1>
+  <section class="card" style="max-width:560px">
+    <h2>First, what kind of business are you?</h2>
+    <p class="muted">We'll ask questions that fit your industry.</p>
+    <form method="post" action="portal.php">
+      <?= csrf_field() ?><input type="hidden" name="action" value="save_industry">
+      <select name="industry" required<?= $dis ?>>
+        <option value="">Choose one…</option>
+        <?php foreach (industries() as $k => $lbl): ?><option value="<?= h($k) ?>"><?= h($lbl) ?></option><?php endforeach; ?>
+      </select>
+      <?php if ($active): ?><p><button class="btn primary" type="submit">Continue</button></p><?php endif; ?>
+    </form>
+  </section>
+<?php
+    elseif ($q >= 0 && isset($items[$q])):
+        $item = $items[$q];
+        $cur  = $checklist[$item['id']] ?? '';
+        $pct  = (int) round(100 * $q / max(1, count($items)));
+?>
+  <p class="muted small" style="margin:0">Question <?= $q + 1 ?> of <?= count($items) ?> · <?= h(CHECK_AREAS[$item['area']]) ?></p>
+  <div class="progress"><div style="width:<?= $pct ?>%"></div></div>
+  <section class="card">
+    <p class="question"><?= h($item['q']) ?></p>
+    <div class="why"><b>Why we ask:</b> <?= h($item['why']) ?></div>
+    <?php if ($active): ?>
+      <form method="post" action="portal.php">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="answer">
+        <input type="hidden" name="q" value="<?= $q ?>">
+        <input type="hidden" name="id" value="<?= h($item['id']) ?>">
+        <div class="answers">
+          <?php foreach (CHECK_ANSWERS as $val => $lbl): ?>
+            <button type="submit" name="answer" value="<?= h($val) ?>"<?= $cur === $val ? ' class="picked"' : '' ?>><?= h($lbl) ?></button>
+          <?php endforeach; ?>
+        </div>
+      </form>
+    <?php else: ?>
+      <p class="muted">Your answer: <b><?= h(CHECK_ANSWERS[$cur] ?? 'Not answered') ?></b></p>
+    <?php endif; ?>
+    <div class="wizard-nav">
+      <?php if ($q > 0): ?><a href="<?= h(portal_url('questions', ['q' => $q - 1])) ?>">← Back</a><?php else: ?><span></span><?php endif; ?>
+      <a href="<?= h(portal_url('questions')) ?>">See all questions</a>
+      <?php if ($q + 1 < count($items)): ?><a href="<?= h(portal_url('questions', ['q' => $q + 1])) ?>">Skip →</a><?php else: ?><a href="<?= h(portal_url('home')) ?>">Finish →</a><?php endif; ?>
     </div>
-  </div>
+  </section>
+  <?php if (in_array($item['area'], ['compliance', 'contracts'], true)): ?>
+    <p class="disclaimer">This is general guidance for your industry, not legal advice.</p>
+  <?php endif; ?>
+<?php
+    else:
+        $firstOpen = 0;
+        foreach ($items as $i => $it) {
+            if (!isset($checklist[$it['id']])) { $firstOpen = $i; break; }
+        }
+?>
+  <h1>Quick questions</h1>
+  <p class="muted" style="margin:0 0 4px">This is your Back-Office Check: how your processes, follow-up, contracts and compliance are set up.</p>
+  <p class="lead"><?= (int) $summary['answered'] ?> of <?= (int) $summary['total'] ?> answered · <?= h(industry_label($industry)) ?>
+    · <a href="<?= h(portal_url('business')) ?>">change industry</a></p>
+  <?php if ($active): ?>
+    <p><a class="btn primary" href="<?= h(portal_url('questions', ['q' => $firstOpen])) ?>"><?= $summary['answered'] === 0 ? 'Start the questions' : 'Continue' ?></a></p>
+  <?php endif; ?>
+  <section class="card">
+    <div class="table-wrap"><table>
+      <tr><th>Question</th><th>Your answer</th><th></th></tr>
+      <?php foreach ($items as $i => $it): ?>
+        <tr>
+          <td><?= h($it['q']) ?></td>
+          <td><?= isset($checklist[$it['id']]) ? h(CHECK_ANSWERS[$checklist[$it['id']]]) : '<span class="muted">—</span>' ?></td>
+          <td><a href="<?= h(portal_url('questions', ['q' => $i])) ?>"><?= isset($checklist[$it['id']]) ? 'Change' : 'Answer' ?></a></td>
+        </tr>
+      <?php endforeach; ?>
+    </table></div>
+  </section>
+  <p class="disclaimer">Compliance questions are general guidance for your industry, not legal advice. Check the rules that apply to you with your attorney or compliance advisor.</p>
+<?php
+    endif;
 
-  <div class="stats" style="margin-top:14px">
-    <div class="stat"><b><?= h(plan_name($license)) ?></b><span>Plan</span></div>
-    <div class="stat"><b><?= $used ?> / <?= (int) $license['seats'] ?></b><span>People connected</span></div>
-    <div class="stat"><b><?= $monitoring ? 'Monthly' : h(format_date($license['access_until'])) ?></b><span><?= $monitoring ? 'Results Tracking on' : 'Audit open until' ?></span></div>
-    <div class="stat"><b><?= $active ? '<span class="badge green">Active</span>' : '<span class="badge red">Ended</span>' ?></b><span>Status</span></div>
-  </div>
-  <p class="muted small">Team key: <code><?= h($license['license_key']) ?></code> — share it with each person you want audited.</p>
+/* ------------------------------ Team ----------------------------- */
+elseif ($page === 'team'):
+    $invite = "Hi team! We're running a quick audit to find work we can automate. It's private: it only sees website names and time spent, never what you type.\n\n"
+        . "It takes 2 minutes to join: " . join_url($license) . "\n\nAfter that, just work like normal. Thanks!";
+?>
+  <h1>Your team</h1>
+  <p class="lead">Everyone who uses your team key is part of <?= h($company) ?>'s audit. All their results come here.</p>
 
-  <?php if (!$active): ?>
-    <div class="alert error">Your audit window has ended. Your data and reports are still here. Turn on <b><?= h((string) $monCfg['name']) ?></b> below to keep auditing.</div>
+  <section class="card">
+    <h2>Invite your team</h2>
+    <p class="muted">Send this message to each person you want included. The link shows them the 3 steps.</p>
+    <textarea id="inviteMsg" readonly rows="7" style="min-height:190px"><?= h($invite) ?></textarea>
+    <div class="actions" style="margin-top:10px">
+      <button class="btn primary" type="button" data-copy="inviteMsg">Copy message</button>
+      <a class="btn" href="<?= h(join_url($license)) ?>" target="_blank" rel="noopener">Preview the invite page</a>
+    </div>
+    <p class="muted small" style="margin-top:12px">Team key: <code id="teamKey"><?= h($license['license_key']) ?></code>
+      · works for up to <?= (int) $license['seats'] ?> people (one per computer).</p>
+  </section>
+
+  <section class="card">
+    <h2>Who's connected (<?= count($devices) ?> of <?= (int) $license['seats'] ?>)</h2>
+    <?php if (!$devices): ?>
+      <p class="muted">No one yet. People show up here as soon as they paste the team key into the extension.</p>
+    <?php else: ?>
+      <div class="table-wrap"><table>
+        <tr><th>Role</th><th>Joined</th><th>Last active</th><th>Audit sent?</th></tr>
+        <?php foreach ($devices as $d): ?>
+          <tr>
+            <td><?= h($d['role_tag'] ?: 'Not set') ?></td>
+            <td><?= h(format_date($d['first_seen'])) ?></td>
+            <td><?= h(format_date($d['last_seen'])) ?></td>
+            <td><?= (int) $d['audits_sent'] > 0 ? '<span class="badge green">Yes</span>' : '<span class="badge">Not yet</span>' ?></td>
+          </tr>
+        <?php endforeach; ?>
+      </table></div>
+      <p class="muted small">Someone missing? Ask them to open the extension and click <b>Send to my Business Portal</b>.</p>
+    <?php endif; ?>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>Audits received (<?= count($audits) ?>)</summary>
+      <?php if (!$audits): ?>
+        <p class="muted">None yet.</p>
+      <?php else: ?>
+        <div class="table-wrap"><table>
+          <tr><th>Date</th><th>Role</th><th>Hours</th><th></th></tr>
+          <?php foreach ($audits as $a): ?>
+            <tr><td><?= h(format_date($a['created_at'])) ?></td><td><?= h($a['role_tag']) ?></td><td><?= h(fmt_hours((float) $a['total_minutes'])) ?></td>
+              <td><?php if ($active): ?><form class="inline" method="post" action="portal.php" onsubmit="return confirm('Remove this audit?')"><?= csrf_field() ?><input type="hidden" name="action" value="delete_audit"><input type="hidden" name="audit_id" value="<?= (int) $a['id'] ?>"><button class="btn small danger" type="submit">Remove</button></form><?php endif; ?></td></tr>
+          <?php endforeach; ?>
+        </table></div>
+      <?php endif; ?>
+    </details>
+    <?php if ($active): ?>
+      <details>
+        <summary>Add an audit from a file</summary>
+        <form method="post" action="portal.php" enctype="multipart/form-data">
+          <?= csrf_field() ?><input type="hidden" name="action" value="upload_audit">
+          <label>Audit file <span class="hint">From "Download my data" in the extension.</span><input type="file" name="audit_file" accept="application/json,.json" required></label>
+          <button class="btn" type="submit">Add file</button>
+        </form>
+      </details>
+    <?php endif; ?>
+  </section>
+
+<?php
+/* ----------------------------- Report ---------------------------- */
+elseif ($page === 'report'):
+?>
+  <h1>Your report</h1>
+  <?php if ($finalPlan): ?>
+    <section class="card">
+      <span class="badge green">Final plan from our team · <?= h(format_date($finalPlan['created_at'])) ?></span>
+      <?= render_markdown($finalPlan['content']) ?>
+    </section>
   <?php endif; ?>
 
-  <section class="card" id="report">
-    <h2>Your report</h2>
-    <?php if ($finalPlan): ?>
-      <div class="alert ok">Your plan from the <?= h((string) cfg('brand_name')) ?> team is ready (<?= h(format_date($finalPlan['created_at'])) ?>).</div>
-      <?= render_markdown($finalPlan['content']) ?>
-      <hr class="sep">
-    <?php endif; ?>
-
+  <section class="card">
     <?php if ($aiReport): ?>
-      <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.06em">Instant AI report · <?= h(format_date($aiReport['created_at'])) ?></h3>
+      <span class="badge">Instant AI report · <?= h(format_date($aiReport['created_at'])) ?></span>
       <?= render_markdown($aiReport['content']) ?>
     <?php elseif (!$audits): ?>
-      <p class="muted">Your report appears here once your team has sent in their audits. In the meantime, fill in your business profile and the Back-Office Check below.</p>
+      <h2>Almost there</h2>
+      <p class="muted">Your report is ready as soon as your team sends in their audits.
+        <a href="<?= h(portal_url('team')) ?>">Invite your team</a>.</p>
     <?php else: ?>
-      <p class="muted">Your team's data is in. Get your instant AI report now. Our team follows up with your final plan.</p>
+      <h2>Your team's results are in</h2>
+      <p class="muted">Get your instant AI report now. It takes 1–2 minutes. Our team then follows up with your final plan.</p>
+      <?php if ($summary['answered'] === 0): ?>
+        <p class="note">Tip: <a href="<?= h(portal_url('questions')) ?>">answer the quick questions</a> first so your report covers your back office too.</p>
+      <?php endif; ?>
     <?php endif; ?>
 
-    <div class="actions" style="margin-top:12px">
+    <div class="actions" style="margin-top:14px">
       <?php if ($audits && $active && ai_reports_enabled()): ?>
-        <form class="inline" method="post" action="portal.php" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Writing your instant AI report… (1–2 minutes)';">
+        <form class="inline" method="post" action="portal.php" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Writing your report… about 1–2 minutes';">
           <?= csrf_field() ?><input type="hidden" name="action" value="generate_report">
           <button class="btn primary" type="submit"><?= $aiReport ? 'Update my instant AI report' : 'Get my instant AI report' ?></button>
         </form>
@@ -215,58 +538,33 @@ $summary    = checklist_summary($industry, $checklist);
       <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call to build these agents →</a>
     </div>
     <p class="muted small">If we build your agents, your audit price is credited toward the build.</p>
-
-    <details class="more-box">
-      <summary class="muted small">Copy the report prompt for ChatGPT or Claude</summary>
-      <?php render_prompt_box(build_business_prompt($license, $profile, $aggregate, $checklist)); ?>
-    </details>
   </section>
 
-  <section class="card" id="profile">
-    <h2>Business profile</h2>
-    <p class="muted small">Tell us about your channels, team and tools. It's combined with your team's audits to find the gaps.</p>
-    <?php render_profile_form($profile, $active); ?>
-  </section>
+  <details>
+    <summary>Copy the report prompt for ChatGPT or Claude</summary>
+    <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist)); ?>
+  </details>
 
-  <section class="card" id="backoffice">
-    <h2>Back-Office Check<?= $profile['industry'] ? ' · ' . h(industry_label($industry)) : '' ?></h2>
-    <p class="muted small">Your processes, SOPs, follow-up, contracts, compliance and data security — the way
-      <?= h((string) cfg('brand_name')) ?> would set up your back office. Answer honestly; this stays private to you and our team.</p>
-    <?php if (!$profile['industry']): ?>
-      <div class="alert error">Choose your industry in your business profile above to add the checks for your industry.</div>
-    <?php endif; ?>
+<?php
+/* ---------------------------- Numbers ---------------------------- */
+else:
+?>
+  <h1>Numbers</h1>
+  <p class="lead">The details behind your report.</p>
+  <section class="card">
+    <h2>Back office · <?= h(industry_label($industry)) ?></h2>
     <?php render_checklist_summary($summary); ?>
-    <p class="disclaimer">Compliance items are general guidance for your industry, not legal advice. Confirm the requirements that apply to you with your attorney or compliance advisor.</p>
-    <details class="more-box"<?= $summary['answered'] === 0 ? ' open' : '' ?>>
-      <summary><b><?= $summary['answered'] === 0 ? 'Start the Back-Office Check' : 'Edit your answers' ?></b> <span class="muted small">(about 5 minutes)</span></summary>
-      <?php render_checklist_form($industry, $checklist, $active); ?>
-    </details>
+    <p class="disclaimer">Compliance items are general guidance for your industry, not legal advice.</p>
   </section>
-
-  <section class="card" id="team">
-    <h2>Team audit data</h2>
-    <?php render_telemetry($aggregate, $audits, $active); ?>
-    <?php if ($active): ?>
-      <form method="post" action="portal.php" enctype="multipart/form-data" style="margin-top:14px">
-        <?= csrf_field() ?>
-        <input type="hidden" name="action" value="upload_audit">
-        <label>Upload an exported audit file
-          <input type="file" name="audit_file" accept="application/json,.json" required>
-        </label>
-        <button class="btn" type="submit">Upload</button>
-      </form>
-    <?php endif; ?>
+  <section class="card">
+    <h2>What your team's browsers show</h2>
+    <?php render_telemetry(aggregate_audits($audits), $audits, false); ?>
   </section>
-
-  <section class="card" id="tracking">
-    <h2><?= h((string) $monCfg['name']) ?> <span class="badge"><?= h((string) $monCfg['price_label']) ?></span></h2>
-    <?php if ($monitoring): ?>
-      <p class="muted">On. Have your team send in their audits each month and compare below. Manage or cancel under <b>Billing &amp; invoices</b>.</p>
-    <?php else: ?>
-      <p class="muted">After your agents are built, keep auditing every month and see what improved. Your team key keeps working while this is on.</p>
-      <form method="post" action="monitor.php"><?= csrf_field() ?><button class="btn primary" type="submit">Turn on <?= h((string) $monCfg['name']) ?></button></form>
-    <?php endif; ?>
-    <?php render_progress(progress_by_month($audits)); ?>
+  <section class="card">
+    <h2>Month by month</h2>
+    <?php $months = progress_by_month($audits); if ($months) { render_progress($months); } else { echo '<p class="muted">Shows up after your first audit.</p>'; } ?>
   </section>
 <?php
+endif;
+
 render_footer();

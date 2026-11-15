@@ -35,6 +35,9 @@ return [
     // Where customers book a call to have the agents built (Calendly, GoHighLevel, etc.).
     'booking_url' => 'https://sirenaflow.com/#contact',
 
+    // Your extension's Chrome Web Store link (shown on the team invite page). Leave empty until it's published.
+    'extension_url' => '',
+
     // ---- Stripe (Dashboard → Developers → API keys / Webhooks) ----
     'stripe_secret_key'     => 'sk_test_REPLACE_ME',
     'stripe_webhook_secret' => 'whsec_REPLACE_ME',

@@ -64,10 +64,10 @@ function render_telemetry(array $aggregate, array $audits, bool $canDelete): voi
 {
     $minutes = (float) $aggregate['totalActiveMinutes'];
     echo '<div class="stats">'
-        . '<div class="stat"><b>' . (int) $aggregate['auditCount'] . '</b><span>Audits synced</span></div>'
-        . '<div class="stat"><b>' . fmt_hours($minutes) . '</b><span>Active hours observed</span></div>'
-        . '<div class="stat"><b>' . count($aggregate['softwareUsage']) . '</b><span>Unique tools / domains</span></div>'
-        . '<div class="stat"><b>' . (int) $aggregate['rapidContextSwitches'] . '</b><span>Rapid context switches</span></div>'
+        . '<div class="stat"><b>' . (int) $aggregate['auditCount'] . '</b><span>Audits received</span></div>'
+        . '<div class="stat"><b>' . fmt_hours($minutes) . '</b><span>Hours tracked</span></div>'
+        . '<div class="stat"><b>' . count($aggregate['softwareUsage']) . '</b><span>Tools used</span></div>'
+        . '<div class="stat"><b>' . (int) $aggregate['rapidContextSwitches'] . '</b><span>Quick tab switches</span></div>'
         . '</div>';
 
     if (!$audits) {
@@ -75,7 +75,7 @@ function render_telemetry(array $aggregate, array $audits, bool $canDelete): voi
         return;
     }
 
-    echo '<h3>Top tools across the team</h3><div class="table-wrap"><table><tr><th>Domain</th><th>Active hrs</th><th>Visits</th><th>Roles</th></tr>';
+    echo '<h3>Tools your team uses most</h3><div class="table-wrap"><table><tr><th>Tool</th><th>Hours</th><th>Visits</th><th>Used by</th></tr>';
     foreach (array_slice($aggregate['softwareUsage'], 0, 25) as $d) {
         echo '<tr><td>' . h($d['domain']) . '</td><td>' . fmt_hours((float) $d['activeMinutes']) . '</td><td>'
             . (int) $d['visitCount'] . '</td><td>' . h(implode(', ', $d['roles'])) . '</td></tr>';
@@ -83,14 +83,14 @@ function render_telemetry(array $aggregate, array $audits, bool $canDelete): voi
     echo '</table></div>';
 
     if ($aggregate['repeatedWorkflowLoops']) {
-        echo '<h3>Most repeated workflow loops</h3><div class="table-wrap"><table><tr><th>Loop</th><th>Repeats</th></tr>';
+        echo '<h3>Tasks your team repeats most</h3><div class="table-wrap"><table><tr><th>Steps</th><th>Times</th></tr>';
         foreach (array_slice($aggregate['repeatedWorkflowLoops'], 0, 10) as $l) {
             echo '<tr><td>' . h(implode(' → ', $l['sequence'])) . '</td><td>' . (int) $l['repeatCount'] . '</td></tr>';
         }
         echo '</table></div>';
     }
 
-    echo '<h3>Synced audits</h3><div class="table-wrap"><table><tr><th>Date</th><th>Role</th><th>Active hrs</th><th>Tools</th><th></th></tr>';
+    echo '<h3>Audits received</h3><div class="table-wrap"><table><tr><th>Date</th><th>Role</th><th>Hours</th><th>Tools</th><th></th></tr>';
     foreach ($audits as $a) {
         $meta = $a['data']['auditMetadata'] ?? [];
         echo '<tr><td>' . h(substr((string) $a['created_at'], 0, 10)) . '</td><td>' . h($a['role_tag']) . '</td><td>'
@@ -118,7 +118,7 @@ function render_progress(array $months): void
         return;
     }
     echo '<h3>Month by month</h3><div class="table-wrap"><table><tr><th>Month</th><th>Audits</th><th>Hours tracked</th>'
-        . '<th>Repeated tasks / hour</th><th>Quick tab jumps / hour</th></tr>';
+        . '<th>Repeated tasks per hour</th><th>Quick tab switches per hour</th></tr>';
     foreach ($months as $m) {
         echo '<tr><td>' . h(date('M Y', strtotime($m['month'] . '-01'))) . '</td><td>' . (int) $m['audits'] . '</td><td>'
             . h((string) $m['hours']) . '</td><td>' . h((string) $m['repeats_per_hour']) . '</td><td>'
@@ -136,7 +136,7 @@ function render_progress(array $months): void
             return ($pct <= 0 ? '↓ ' . abs($pct) : '↑ ' . $pct) . '%';
         };
         echo '<p class="muted small">Since ' . h(date('M Y', strtotime($first['month'] . '-01'))) . ': repeated tasks per hour '
-            . h($change((float) $first['repeats_per_hour'], (float) $last['repeats_per_hour'])) . ', quick tab jumps per hour '
+            . h($change((float) $first['repeats_per_hour'], (float) $last['repeats_per_hour'])) . ', quick tab switches per hour '
             . h($change((float) $first['switches_per_hour'], (float) $last['switches_per_hour'])) . '. Lower is better.</p>';
     } else {
         echo '<p class="muted small">Send in audits next month to compare.</p>';
@@ -174,10 +174,10 @@ function render_checklist_form(string $industry, array $answers, bool $editable)
 function render_checklist_summary(array $summary, bool $showGaps = true): void
 {
     if ($summary['answered'] === 0) {
-        echo '<p class="muted">Not answered yet.</p>';
+        echo '<p class="muted">No answers yet.</p>';
         return;
     }
-    echo '<div class="stats"><div class="stat"><b>' . (int) $summary['score'] . '%</b><span>Back-office readiness ('
+    echo '<div class="stats"><div class="stat"><b>' . (int) $summary['score'] . '%</b><span>Back office score ('
         . (int) $summary['answered'] . ' of ' . (int) $summary['total'] . ' answered)</span></div>';
     foreach ($summary['areas'] as $area) {
         echo '<div class="stat"><b>' . ($area['score'] === null ? '—' : (int) $area['score'] . '%') . '</b><span>' . h($area['label']) . '</span></div>';
@@ -186,7 +186,7 @@ function render_checklist_summary(array $summary, bool $showGaps = true): void
     if (!$showGaps || !$summary['gaps']) {
         return;
     }
-    echo '<h3>Gaps and how we would automate them</h3><div class="table-wrap"><table><tr><th>Area</th><th>Gap</th><th>Answer</th><th>How it can be automated</th></tr>';
+    echo '<h3>What to fix first</h3><div class="table-wrap"><table><tr><th>Area</th><th>Question</th><th>You said</th><th>How we can fix it</th></tr>';
     foreach (array_slice($summary['gaps'], 0, 15) as $g) {
         echo '<tr><td>' . h(CHECK_AREAS[$g['area']]) . '</td><td>' . h($g['q']) . '</td><td>' . h(CHECK_ANSWERS[$g['answer']])
             . '</td><td>' . h($g['auto']) . '</td></tr>';

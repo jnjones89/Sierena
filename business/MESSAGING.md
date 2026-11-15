@@ -13,7 +13,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **team key** | The `AUDIT-XXXX-XXXX-XXXX-XXXX` code a buyer shares with their team | license key, Business key, access key |
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
 | **business profile** | Company, social media, tools, team, goals | intake form |
-| **Back-Office Check** | Industry questions about processes and SOPs, follow-up, contracts, compliance, data security | compliance audit, legal review |
+| **Back-Office Check** | Industry questions about processes and SOPs, follow-up, contracts, compliance, data security. In the portal it shows up as **quick questions**, one at a time, answered Yes / Sometimes / No / Not sure | compliance audit, legal review |
 | **instant AI report** | Written by AI in the portal in 1–2 minutes | gap analysis, AI Gap Map |
 | **final plan** | Reviewed and published by our team, with the SOPs to write first | full report, custom report |
 | **report prompt** | The copy-paste prompt for ChatGPT or Claude | full AI report, analysis prompt |
@@ -24,13 +24,21 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - Extension: **Start my free audit** · **Show** (after email) · **Copy report prompt for ChatGPT or Claude** · **Download my data**
 - Extension, free: **Audit my whole team →** · **Want this for your whole team? See Team Audits →** · **Have a team key?**
 - Extension, team: **Send to my Business Portal** · **Open Business Portal ↗** · **Start a new audit**
-- Portal: **Get my instant AI report** · **Save business profile** · **Save Back-Office Check** · **Turn on Results Tracking** · **Book a call to build these agents →**
+- Portal home steps: **Tell us about your business** · **Get your team connected** · **Answer some quick questions** · **Get your report**
+- Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Turn on Results Tracking** · **Book a call to build these agents →**
+- Team invite page: **Join [company]'s Team Audit** → Add the extension · Paste your team key · Turn tracking on
 
 ## The promise, in one line each
 - Free audit: *Turn it on and work like normal. After 5 hours of work, you'll see the task you repeat most, the AI agent that can do it for you, and a simple step-by-step fix.*
 - Team Audit: *Everyone runs the private, read-only audit for a few days. You get one report: your biggest bottlenecks, the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them, plus a Back-Office Check for your industry.*
 - Results Tracking: *Keep auditing every month after your agents are built, and see what improved.*
 - Build credit: *If we build your agents, the audit price is credited toward the build.*
+
+## Style
+- Short sentences. Everyday words. One idea per sentence.
+- Ask questions as "Do you…?" with Yes / Sometimes / No / Not sure.
+- One main button per screen. Details (tables, numbers) go on the Numbers page.
+- Say "tab switches", not "context switches"; "tasks you repeat", not "workflow loops"; "tools", not "domains".
 
 ## Privacy line (always the same)
 *We only see website names and time spent. Never what you type, read or click.*

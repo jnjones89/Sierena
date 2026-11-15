@@ -38,6 +38,16 @@ function cfg(string $key)
     return $config[$key];
 }
 
+/** Optional config value (for settings added after launch, so older config files keep working). */
+function cfg_opt(string $key, $default = null)
+{
+    try {
+        return cfg($key);
+    } catch (RuntimeException $e) {
+        return $default;
+    }
+}
+
 function site_url(string $path = ''): string
 {
     return rtrim((string) cfg('site_url'), '/') . ($path === '' ? '' : '/' . ltrim($path, '/'));
@@ -71,6 +81,7 @@ function ensure_schema(PDO $pdo): void
     try {
         $pdo->query('SELECT monitor_status FROM licenses LIMIT 1');
         $pdo->query('SELECT 1 FROM reports LIMIT 1');
+        $pdo->query('SELECT device_id FROM audits LIMIT 1');
         return; // schema is current
     } catch (PDOException $e) {
         // create / upgrade below
@@ -115,6 +126,17 @@ function ensure_schema(PDO $pdo): void
         }
     }
 
+    try {
+        $pdo->query('SELECT device_id FROM audits LIMIT 1');
+    } catch (PDOException $e) {
+        try {
+            $pdo->query('SELECT 1 FROM audits LIMIT 1');
+            $pdo->exec("ALTER TABLE audits ADD COLUMN device_id VARCHAR(64) NOT NULL DEFAULT ''");
+        } catch (PDOException $e2) {
+            // audits table is created below with the column
+        }
+    }
+
     $pdo->exec("CREATE TABLE IF NOT EXISTS devices (
         id $id,
         license_id INT NOT NULL,
@@ -144,6 +166,7 @@ function ensure_schema(PDO $pdo): void
         id $id,
         license_id INT NOT NULL,
         role_tag VARCHAR(80) NOT NULL DEFAULT '',
+        device_id VARCHAR(64) NOT NULL DEFAULT '',
         total_minutes DOUBLE NOT NULL DEFAULT 0,
         payload $text NOT NULL,
         created_at VARCHAR(32) NOT NULL
@@ -646,9 +669,15 @@ function claim_seat(array $license, string $deviceId, string $roleTag = ''): ?st
 
 function list_devices(int $licenseId): array
 {
-    $stmt = db()->prepare('SELECT * FROM devices WHERE license_id = ? ORDER BY first_seen');
+    $stmt = db()->prepare('SELECT d.*, (SELECT COUNT(*) FROM audits a WHERE a.license_id = d.license_id AND a.device_id = d.device_id) AS audits_sent
+        FROM devices d WHERE d.license_id = ? ORDER BY d.first_seen');
     $stmt->execute([$licenseId]);
     return $stmt->fetchAll();
+}
+
+function join_url(array $license): string
+{
+    return site_url('join.php') . '?k=' . rawurlencode($license['license_key']);
 }
 
 /* ------------------------------------------------------------------ */
@@ -712,12 +741,13 @@ function sanitize_audit_payload($payload): ?array
     ];
 }
 
-function store_audit(int $licenseId, array $clean): int
+function store_audit(int $licenseId, array $clean, string $deviceId = ''): int
 {
-    db()->prepare('INSERT INTO audits (license_id, role_tag, total_minutes, payload, created_at) VALUES (?, ?, ?, ?, ?)')
+    db()->prepare('INSERT INTO audits (license_id, role_tag, device_id, total_minutes, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         ->execute([
             $licenseId,
             $clean['auditMetadata']['roleTag'],
+            $deviceId,
             $clean['auditMetadata']['totalActiveMinutes'],
             json_encode($clean, JSON_UNESCAPED_SLASHES),
             now_iso(),
@@ -790,24 +820,24 @@ function profile_fields(): array
     // key => [label, type, placeholder]
     return [
         'company'          => ['Company name', 'text', 'Acme Inc.'],
-        'website'          => ['Website', 'url', 'https://acme.com'],
         'industry'         => ['Industry', 'select', ''],
-        'team_size'        => ['Team size', 'text', 'e.g. 12'],
-        'software_budget'  => ['Monthly software spend (approx.)', 'text', 'e.g. $3,500'],
-        'hourly_cost'      => ['Average loaded hourly labor cost', 'text', 'e.g. $40'],
-        'facebook'         => ['Facebook page', 'url', 'https://facebook.com/…'],
-        'instagram'        => ['Instagram', 'url', 'https://instagram.com/…'],
-        'linkedin'         => ['LinkedIn company page', 'url', 'https://linkedin.com/company/…'],
-        'tiktok'           => ['TikTok', 'url', 'https://tiktok.com/@…'],
-        'x_twitter'        => ['X / Twitter', 'url', 'https://x.com/…'],
-        'youtube'          => ['YouTube', 'url', 'https://youtube.com/@…'],
-        'google_business'  => ['Google Business Profile', 'url', 'https://g.page/…'],
-        'other_channels'   => ['Other channels (email list, newsletter, podcast…)', 'textarea', ''],
-        'departments'      => ['Departments & headcount', 'textarea', 'Sales: 4, Ops: 3, Admin: 2'],
-        'current_tools'    => ['Software you pay for (name + monthly cost if known)', 'textarea', 'HubSpot $800, Slack $120, …'],
-        'lead_sources'     => ['How do customers find you today?', 'textarea', ''],
-        'bottlenecks'      => ['Biggest bottlenecks / repetitive tasks', 'textarea', ''],
-        'goals'            => ['Goals for the next 90 days', 'textarea', ''],
+        'website'          => ['Website', 'url', 'acme.com'],
+        'team_size'        => ['How many people work here?', 'text', 'e.g. 12'],
+        'software_budget'  => ['About how much do you spend on software each month?', 'text', 'e.g. $3,500'],
+        'hourly_cost'      => ['About how much does an hour of staff time cost you?', 'text', 'e.g. $40'],
+        'facebook'         => ['Facebook', 'url', 'facebook.com/…'],
+        'instagram'        => ['Instagram', 'url', 'instagram.com/…'],
+        'linkedin'         => ['LinkedIn', 'url', 'linkedin.com/company/…'],
+        'tiktok'           => ['TikTok', 'url', 'tiktok.com/@…'],
+        'x_twitter'        => ['X (Twitter)', 'url', 'x.com/…'],
+        'youtube'          => ['YouTube', 'url', 'youtube.com/@…'],
+        'google_business'  => ['Google Business Profile', 'url', 'g.page/…'],
+        'other_channels'   => ['Anywhere else you reach customers? (email list, podcast…)', 'textarea', ''],
+        'departments'      => ['Who is on your team?', 'textarea', 'e.g. Sales: 4, Office: 2, Owner: 1'],
+        'current_tools'    => ['What software do you pay for?', 'textarea', 'e.g. HubSpot $800, Slack $120'],
+        'lead_sources'     => ['How do new customers find you?', 'textarea', ''],
+        'bottlenecks'      => ['What slows you down the most?', 'textarea', ''],
+        'goals'            => ['What do you want to fix in the next 90 days?', 'textarea', ''],
     ];
 }
 

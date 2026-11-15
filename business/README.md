@@ -9,7 +9,9 @@ included in `vendor/`, so you only upload the folder.
 Free extension user ──► "Audit my whole team" ──► /business/ (pricing: Starter / Team / Company, priced by team size)
    ──► checkout.php ──► Stripe (one-time payment)
    ──► success.php: verifies payment, creates the team key AUDIT-XXXX-XXXX-XXXX-XXXX (also emailed)
-   ──► each teammate pastes the key in the extension (one seat per browser, up to the plan's limit)
+   ──► the owner sends the invite message from the portal's "Your team" page (link to join.php)
+   ──► each teammate pastes the key in the extension (one seat per computer, up to the plan's limit);
+       the "Your team" page shows who's connected and who has sent in their audit
    ──► "Send to my Business Portal" ──► portal.php
          • business profile (industry, social media, tools, goals)
          • Back-Office Check: processes & SOPs, follow-up, contracts, compliance and data security,
@@ -85,6 +87,6 @@ Industry lists live in `includes/industries.php` and `../workflow-shadow-audit/i
 
 ## Files
 - `index.php` pricing · `checkout.php` one-time audit · `success.php` · `monitor.php` Results Tracking · `webhook.php` · `billing.php`
-- `portal.php` customer portal · `admin.php` your dashboard
+- `portal.php` customer portal (Home steps · Your business · Questions · Your team · Report · Numbers) · `join.php` team invite page · `admin.php` your dashboard
 - `api/validate.php`, `api/sync.php`, `api/lead.php` — called by the extension
 - `includes/` library + config, `vendor/` Composer packages (both blocked from the web)
