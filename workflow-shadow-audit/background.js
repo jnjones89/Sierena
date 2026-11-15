@@ -110,7 +110,7 @@ async function persist(state) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Free (Lite) audit limit                                             */
+/* Free audit limit                                                    */
 /* ------------------------------------------------------------------ */
 
 function isBusiness(state) {

@@ -1,6 +1,6 @@
 <?php
 /*
- * POST {"email": "...", "roleTag": "..."} — records a Lite (free) lead from the extension.
+ * POST {"email": "...", "roleTag": "..."} — records a free audit lead from the extension.
  */
 declare(strict_types=1);
 require dirname(__DIR__) . '/includes/lib.php';

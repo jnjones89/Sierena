@@ -65,6 +65,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         flash_redirect('Business profile saved.', 'ok', 'profile');
     }
 
+    if ($action === 'save_checklist') {
+        $industry = load_profile($lid)['industry'] ?: 'other';
+        $answers  = save_checklist($lid, $industry, $_POST);
+        $summary  = checklist_summary($industry, $answers);
+        flash_redirect('Back-Office Check saved: ' . $summary['answered'] . ' of ' . $summary['total'] . ' answered.', 'ok', 'backoffice');
+    }
+
     if ($action === 'upload_audit') {
         $file = $_FILES['audit_file'] ?? null;
         if (!$file || ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || $file['size'] > 2_000_000) {
@@ -85,7 +92,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
 
     if ($action === 'generate_report') {
         if (!ai_reports_enabled()) {
-            flash_redirect('Instant reports are not available right now. Our team will send your plan.', 'error', 'report');
+            flash_redirect('The instant AI report is not available right now. Our team will send your final plan.', 'error', 'report');
         }
         if (!list_audits($lid)) {
             flash_redirect('Sync at least one audit first.', 'error', 'report');
@@ -98,13 +105,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         ignore_user_abort(true);
         session_write_close();
         try {
-            $prompt = build_business_prompt($license, load_profile($lid), aggregate_audits(list_audits($lid)));
+            $prompt = build_business_prompt($license, load_profile($lid), aggregate_audits(list_audits($lid)), load_checklist($lid));
             $result = generate_ai_report($prompt);
             save_report($lid, 'ai', $result['text'], $result['model']);
         } catch (Throwable $e) {
             error_log('[SWA report] ' . $e->getMessage());
             start_session();
-            flash_redirect('We could not write the report right now. Please try again in a few minutes.', 'error', 'report');
+            flash_redirect('We could not write your instant AI report right now. Please try again in a few minutes.', 'error', 'report');
         }
         send_mail(
             (string) cfg('owner_email'),
@@ -113,7 +120,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             . "Follow up with the full plan here: " . site_url('admin.php?view=' . $lid) . "\n"
         );
         start_session();
-        flash_redirect('Your report is ready.', 'ok', 'report');
+        flash_redirect('Your instant AI report is ready.', 'ok', 'report');
     }
 
     flash_redirect('Unknown action.', 'error');
@@ -155,6 +162,9 @@ $finalPlan  = latest_report($lid, 'final');
 $monitoring = license_monitoring($license);
 $monCfg     = (array) cfg('monitoring');
 $used       = seats_used($lid);
+$industry   = $profile['industry'] ?: 'other';
+$checklist  = load_checklist($lid);
+$summary    = checklist_summary($industry, $checklist);
 ?>
   <div class="actions" style="justify-content:space-between">
     <h1 style="margin:0"><?= h($profile['company'] ?: ($license['company'] ?: 'Your company')) ?></h1>
@@ -190,16 +200,16 @@ $used       = seats_used($lid);
       <h3 class="muted small" style="text-transform:uppercase;letter-spacing:.06em">Instant AI report · <?= h(format_date($aiReport['created_at'])) ?></h3>
       <?= render_markdown($aiReport['content']) ?>
     <?php elseif (!$audits): ?>
-      <p class="muted">Your report appears here once your team has sent in their audits. Fill in your business profile below in the meantime.</p>
+      <p class="muted">Your report appears here once your team has sent in their audits. In the meantime, fill in your business profile and the Back-Office Check below.</p>
     <?php else: ?>
-      <p class="muted">Your team's data is in. Get your instant report now — our team will follow up with a full plan.</p>
+      <p class="muted">Your team's data is in. Get your instant AI report now. Our team follows up with your final plan.</p>
     <?php endif; ?>
 
     <div class="actions" style="margin-top:12px">
       <?php if ($audits && $active && ai_reports_enabled()): ?>
-        <form class="inline" method="post" action="portal.php" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Writing your report… (1–2 minutes)';">
+        <form class="inline" method="post" action="portal.php" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Writing your instant AI report… (1–2 minutes)';">
           <?= csrf_field() ?><input type="hidden" name="action" value="generate_report">
-          <button class="btn primary" type="submit"><?= $aiReport ? 'Update my report' : 'Get my instant report' ?></button>
+          <button class="btn primary" type="submit"><?= $aiReport ? 'Update my instant AI report' : 'Get my instant AI report' ?></button>
         </form>
       <?php endif; ?>
       <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call to build these agents →</a>
@@ -207,8 +217,8 @@ $used       = seats_used($lid);
     <p class="muted small">If we build your agents, your audit price is credited toward the build.</p>
 
     <details class="more-box">
-      <summary class="muted small">Advanced: copy the report prompt for ChatGPT or Claude</summary>
-      <?php render_prompt_box(build_business_prompt($license, $profile, $aggregate)); ?>
+      <summary class="muted small">Copy the report prompt for ChatGPT or Claude</summary>
+      <?php render_prompt_box(build_business_prompt($license, $profile, $aggregate, $checklist)); ?>
     </details>
   </section>
 
@@ -216,6 +226,21 @@ $used       = seats_used($lid);
     <h2>Business profile</h2>
     <p class="muted small">Tell us about your channels, team and tools. It's combined with your team's audits to find the gaps.</p>
     <?php render_profile_form($profile, $active); ?>
+  </section>
+
+  <section class="card" id="backoffice">
+    <h2>Back-Office Check<?= $profile['industry'] ? ' · ' . h(industry_label($industry)) : '' ?></h2>
+    <p class="muted small">Your processes, SOPs, follow-up, contracts, compliance and data security — the way
+      <?= h((string) cfg('brand_name')) ?> would set up your back office. Answer honestly; this stays private to you and our team.</p>
+    <?php if (!$profile['industry']): ?>
+      <div class="alert error">Choose your industry in your business profile above to add the checks for your industry.</div>
+    <?php endif; ?>
+    <?php render_checklist_summary($summary); ?>
+    <p class="disclaimer">Compliance items are general guidance for your industry, not legal advice. Confirm the requirements that apply to you with your attorney or compliance advisor.</p>
+    <details class="more-box"<?= $summary['answered'] === 0 ? ' open' : '' ?>>
+      <summary><b><?= $summary['answered'] === 0 ? 'Start the Back-Office Check' : 'Edit your answers' ?></b> <span class="muted small">(about 5 minutes)</span></summary>
+      <?php render_checklist_form($industry, $checklist, $active); ?>
+    </details>
   </section>
 
   <section class="card" id="team">

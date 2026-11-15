@@ -54,6 +54,8 @@ const el = {
   statSwitches: $('statSwitches'),
   roleRowTracking: $('roleRowTracking'),
   roleInputs: Array.from(document.querySelectorAll('.role-input')),
+  industrySelects: Array.from(document.querySelectorAll('.industry-select')),
+  industryLine: $('industryLine'),
   emailInput: $('emailInput'),
   emailBtn: $('emailBtn'),
   emailMsg: $('emailMsg'),
@@ -82,7 +84,7 @@ const el = {
   bizChange: $('bizChange')
 };
 
-let profile = { roleTag: '', access: null, webhookUrl: '' };
+let profile = { roleTag: '', industry: '', access: null, webhookUrl: '' };
 let latestMetrics = null;
 let status = { enabled: false, tracking: false, idleState: 'active', trial: {}, liteTargetSeconds: DEFAULT_LITE_TARGET };
 let refreshTimer = null;
@@ -192,7 +194,7 @@ function hasEmail() {
 
 async function loadProfile() {
   const { profile: stored } = await chrome.storage.local.get('profile');
-  profile = Object.assign({ roleTag: '', access: null, webhookUrl: '' }, stored || {});
+  profile = Object.assign({ roleTag: '', industry: '', access: null, webhookUrl: '' }, stored || {});
 }
 
 async function saveProfile() {
@@ -213,7 +215,7 @@ function accessFromResult(key, result, previous) {
     mode: 'key',
     tier: 'business',
     value: key,
-    plan: result.plan || 'Business',
+    plan: result.plan || 'Team Audit',
     company: result.company || '',
     accessUntil: result.accessUntil || null,
     monitoring: !!result.monitoring,
@@ -235,8 +237,41 @@ function handleRoleInput(e) {
   }, 300);
 }
 
+function fillIndustrySelects() {
+  el.industrySelects.forEach((select) => {
+    select.textContent = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = 'Choose your industry…';
+    select.appendChild(blank);
+    Object.keys(INDUSTRIES).forEach((key) => {
+      const opt = document.createElement('option');
+      opt.value = key;
+      opt.textContent = INDUSTRIES[key].label;
+      select.appendChild(opt);
+    });
+    select.value = profile.industry || '';
+    select.addEventListener('change', async (e) => {
+      profile.industry = INDUSTRIES[e.target.value] ? e.target.value : '';
+      el.industrySelects.forEach((other) => {
+        other.value = profile.industry;
+      });
+      await saveProfile();
+      renderIndustryLine();
+    });
+  });
+  renderIndustryLine();
+}
+
+function renderIndustryLine() {
+  const industry = INDUSTRIES[profile.industry];
+  el.industryLine.textContent = industry
+    ? `${industry.label} checks: ${industry.checks.join(', ')}`
+    : 'Checks for your industry: insurance, lending, credit repair, real estate and more';
+}
+
 /* ------------------------------------------------------------------ */
-/* Email (free results) and Business key                               */
+/* Email (free results) and team key                                   */
 /* ------------------------------------------------------------------ */
 
 function validateWorkEmail(value) {
@@ -304,7 +339,7 @@ async function handleChangeKey() {
   await refresh();
 }
 
-/** Re-check a Business key so canceled subscriptions lose access. */
+/** Re-check a team key so ended audits and canceled tracking lose access. */
 async function revalidateBusinessKey(force) {
   const a = profile.access;
   if (!a || a.mode !== 'key') return;
@@ -600,8 +635,11 @@ function cancelResetConfirm() {
 }
 
 function openUpgrade() {
-  const email = profile.access && profile.access.mode === 'email' ? profile.access.value : '';
-  openTab(BUSINESS_BASE_URL + '/' + (email ? '?email=' + encodeURIComponent(email) : ''));
+  const params = new URLSearchParams();
+  if (profile.access && profile.access.mode === 'email') params.set('email', profile.access.value);
+  if (profile.industry) params.set('industry', profile.industry);
+  const query = params.toString();
+  openTab(BUSINESS_BASE_URL + '/' + (query ? '?' + query : ''));
 }
 
 /* ------------------------------------------------------------------ */
@@ -798,7 +836,7 @@ function render() {
     const until = a.accessUntil && !a.monitoring
       ? ' · until ' + new Date(a.accessUntil).toLocaleDateString([], { month: 'short', day: 'numeric' })
       : '';
-    el.bizText.textContent = (a.plan || 'Business') + (a.company ? ' · ' + a.company : '') + until;
+    el.bizText.textContent = (a.plan || 'Team Audit') + (a.company ? ' · ' + a.company : '') + until;
   }
 }
 
@@ -827,6 +865,7 @@ async function init() {
     input.addEventListener('input', handleRoleInput);
   });
   el.webhookInput.value = profile.webhookUrl || '';
+  fillIndustrySelects();
 
   el.startBtn.addEventListener('click', handleStart);
   el.enabledToggle.addEventListener('change', handleToggle);

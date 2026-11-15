@@ -6,6 +6,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/industries.php';
+
 /* ------------------------------------------------------------------ */
 /* Configuration                                                       */
 /* ------------------------------------------------------------------ */
@@ -443,7 +445,7 @@ function license_is_active(?array $license): bool
 function license_inactive_reason(?array $license): string
 {
     if ($license === null) {
-        return 'License key not found.';
+        return 'Team key not found. Check it and try again.';
     }
     if ($license['status'] !== 'active') {
         return 'This license has been turned off. Contact us for help.';
@@ -568,9 +570,10 @@ function notify_new_license(array $license): void
         "Thanks for purchasing the $plan.\n\n"
         . "Your team key:\n\n    {$license['license_key']}\n\n"
         . "It works for up to {$license['seats']} people until $until.\n\n"
-        . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a Business key?\" and pastes this key.\n"
+        . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a team key?\", pastes this key and turns tracking on.\n"
         . "2. Everyone works normally for a few days, then clicks \"Send to my Business Portal\".\n"
-        . "3. Sign in to your portal with this email and key, fill in your business profile, and get your report:\n    "
+        . "3. Sign in to your Business Portal with this email and key. Fill in your business profile and the Back-Office Check,\n"
+        . "   then get your instant AI report. Our team follows up with your final plan:\n    "
         . site_url('portal.php') . "\n\n"
         . "Keep this key private — anyone with it can see your company's portal.\n\n— $brand\n"
     );
@@ -788,7 +791,7 @@ function profile_fields(): array
     return [
         'company'          => ['Company name', 'text', 'Acme Inc.'],
         'website'          => ['Website', 'url', 'https://acme.com'],
-        'industry'         => ['Industry', 'text', 'e.g. Real estate, Med spa, E-commerce'],
+        'industry'         => ['Industry', 'select', ''],
         'team_size'        => ['Team size', 'text', 'e.g. 12'],
         'software_budget'  => ['Monthly software spend (approx.)', 'text', 'e.g. $3,500'],
         'hourly_cost'      => ['Average loaded hourly labor cost', 'text', 'e.g. $40'],
@@ -808,15 +811,37 @@ function profile_fields(): array
     ];
 }
 
-function load_profile(int $licenseId): array
+function profile_data(int $licenseId): array
 {
     $stmt = db()->prepare('SELECT data FROM profiles WHERE license_id = ?');
     $stmt->execute([$licenseId]);
     $raw = $stmt->fetchColumn();
-    $data = $raw ? (json_decode((string) $raw, true) ?: []) : [];
+    return $raw ? (json_decode((string) $raw, true) ?: []) : [];
+}
+
+function write_profile_data(int $licenseId, array $data): void
+{
+    $pdo  = db();
+    $json = json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $now  = now_iso();
+    $exists = $pdo->prepare('SELECT 1 FROM profiles WHERE license_id = ?');
+    $exists->execute([$licenseId]);
+    if ($exists->fetchColumn()) {
+        $pdo->prepare('UPDATE profiles SET data = ?, updated_at = ? WHERE license_id = ?')->execute([$json, $now, $licenseId]);
+    } else {
+        $pdo->prepare('INSERT INTO profiles (license_id, data, updated_at) VALUES (?, ?, ?)')->execute([$licenseId, $json, $now]);
+    }
+}
+
+function load_profile(int $licenseId): array
+{
+    $data = profile_data($licenseId);
     $out = [];
     foreach (profile_fields() as $key => $_) {
         $out[$key] = (string) ($data[$key] ?? '');
+    }
+    if ($out['industry'] !== '' && !isset(industries()[$out['industry']])) {
+        $out['industry'] = 'other';
     }
     return $out;
 }
@@ -830,49 +855,74 @@ function save_profile(int $licenseId, array $input): array
         if ($type === 'url' && $val !== '' && !preg_match('#^https?://#i', $val)) {
             $val = 'https://' . $val;
         }
+        if ($type === 'select' && !isset(industries()[$val])) {
+            $val = '';
+        }
         $clean[$key] = $val;
     }
-    $pdo  = db();
-    $json = json_encode($clean, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    $now  = now_iso();
-    $upd  = $pdo->prepare('UPDATE profiles SET data = ?, updated_at = ? WHERE license_id = ?');
-    $upd->execute([$json, $now, $licenseId]);
-    if ($upd->rowCount() === 0) {
-        $exists = $pdo->prepare('SELECT 1 FROM profiles WHERE license_id = ?');
-        $exists->execute([$licenseId]);
-        if (!$exists->fetchColumn()) {
-            $pdo->prepare('INSERT INTO profiles (license_id, data, updated_at) VALUES (?, ?, ?)')
-                ->execute([$licenseId, $json, $now]);
-        }
-    }
+    write_profile_data($licenseId, array_merge(profile_data($licenseId), $clean));
     return $clean;
 }
 
+/** Back-Office Check answers: [item id => yes|partly|no|unsure]. */
+function load_checklist(int $licenseId): array
+{
+    $answers = profile_data($licenseId)['checklist'] ?? [];
+    return is_array($answers) ? $answers : [];
+}
+
+function save_checklist(int $licenseId, string $industry, array $input): array
+{
+    $answers = load_checklist($licenseId); // keep answers from other industries if they switch back
+    foreach (checklist_items($industry) as $id => $_) {
+        $a = (string) ($input[$id] ?? '');
+        if (isset(CHECK_ANSWERS[$a])) {
+            $answers[$id] = $a;
+        }
+    }
+    $data = profile_data($licenseId);
+    $data['checklist'] = $answers;
+    write_profile_data($licenseId, $data);
+    return $answers;
+}
+
 /* ------------------------------------------------------------------ */
-/* AI Gap Analysis prompt (business edition)                           */
+/* Report prompt (Team Audit)                                         */
 /* ------------------------------------------------------------------ */
 
-function build_business_prompt(array $license, array $profile, array $aggregate): string
+function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = []): string
 {
     $labels = profile_fields();
     $profileLines = [];
     foreach ($profile as $key => $val) {
         if ($val !== '') {
-            $profileLines[] = '- ' . $labels[$key][0] . ': ' . str_replace("\n", ' / ', $val);
+            $shown = $key === 'industry' ? industry_label($val) : str_replace("\n", ' / ', $val);
+            $profileLines[] = '- ' . $labels[$key][0] . ': ' . $shown;
         }
     }
+    $industryKey = $profile['industry'] ?: 'other';
+    $industry    = industry_label($industryKey);
+    $checkLines  = [];
+    foreach (checklist_items($industryKey) as $id => $item) {
+        $answer = CHECK_ANSWERS[$checklist[$id] ?? ''] ?? 'Not answered';
+        $checkLines[] = '- [' . CHECK_AREAS[$item['area']] . '] ' . $item['q'] . ' -> ' . $answer;
+    }
+    $checkText = implode("\n", $checkLines);
     $profileText = $profileLines ? implode("\n", $profileLines) : '- (Business profile not filled in yet)';
     $company = $profile['company'] ?: ($license['company'] ?: 'the client');
 
     $telemetry = json_encode($aggregate, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     return <<<PROMPT
-You are an AI operations consultant writing a report for the owner of {$company}. The owner is busy and not
-technical: use plain words, short sentences and numbers first. Keep the whole report under about 1,200 words.
+You are an AI operations consultant writing a report for the owner of {$company}, a business in this industry:
+{$industry}. The owner is busy and not technical: use plain words, short sentences and numbers first.
+Keep the whole report under about 1,500 words.
 
 ## Inputs
 1. BUSINESS PROFILE: supplied by the owner (social channels, team, tools, goals).
-2. TEAM TELEMETRY: combined from private, read-only browser audits across the team. It contains only website
+2. BACK-OFFICE CHECK: the owner's own answers about their processes, SOPs, follow-up, contracts, compliance
+   and data security, including items specific to their industry.
+3. TEAM TELEMETRY: combined from private, read-only browser audits across the team. It contains only website
    names, active minutes, visit counts, repeated 4-site patterns and quick tab jumps (less than 30 seconds apart).
    No page content or personal data.
 
@@ -880,7 +930,9 @@ technical: use plain words, short sentences and numbers first. Keep the whole re
 - Use only the data provided. When a number is missing, say it is an estimate and show the simple math.
 - Use the hourly labor cost from the profile if given; otherwise assume \$45/hour and 21.7 workdays/month.
 - Ignore personal (non-work) websites in the cost math.
-- Format in Markdown: ## headings, short bullet lists, numbered steps, and at most two small tables.
+- Compliance points are general guidance for this industry, not legal advice. Say once, briefly, that the owner
+  should confirm them with their attorney or compliance advisor. Never state that the business is compliant.
+- Format in Markdown: ## headings, short bullet lists, numbered steps, and at most three small tables.
 
 ## Write these sections
 ## 1. The short version
@@ -896,13 +948,20 @@ A simple step-by-step process (5–7 steps) showing exactly how the work will fl
 including where a person approves things.
 ## 5. What it is costing you now
 Hours and dollars per month for the team size given, with the math.
-## 6. Software you may not need
+## 6. Your back office
+From the Back-Office Check: the biggest gaps in processes, follow-up, contracts, compliance and data security,
+most serious first (compliance and contracts before the rest). For each: why it matters for a {$industry}
+business and how it can be automated. Then list the 3–5 SOPs to write first.
+## 7. Software you may not need
 Overlapping or barely used tools and the likely monthly savings (estimates).
-## 7. Your next 30 days
+## 8. Your next 30 days
 Week 1 to Week 4, one or two actions each.
 
 ## BUSINESS PROFILE
 {$profileText}
+
+## BACK-OFFICE CHECK
+{$checkText}
 
 ## TEAM TELEMETRY (JSON)
 ```json

@@ -11,6 +11,7 @@ if (!isset($plans[$selected])) {
     $selected = (string) array_key_first($plans);
 }
 $monitoring = (array) cfg('monitoring');
+$industry   = (string) ($_GET['industry'] ?? '');
 $days       = (int) cfg('audit_access_days');
 
 render_header('Team Audit');
@@ -34,10 +35,10 @@ the repetitive tasks behind them, the AI agents you need, and a step-by-step pla
         <h2><?= h($plan['name']) ?> <span class="price"><?= h($plan['price_label']) ?></span></h2>
         <p class="muted small">One-time payment · up to <?= (int) $plan['people'] ?> people</p>
         <ul>
-          <li>Audit up to <?= (int) $plan['people'] ?> people</li>
+          <li>Browser audit for up to <?= (int) $plan['people'] ?> people</li>
+          <li>Back-Office Check for your industry</li>
+          <li>Instant AI report, plus a final plan from our team</li>
           <li><?= $days ?> days to run the audit</li>
-          <li>Instant AI report + a plan from our team</li>
-          <li>Business profile: social media, tools, goals</li>
         </ul>
       </label>
     <?php endforeach; ?>
@@ -58,13 +59,33 @@ the repetitive tasks behind them, the AI agents you need, and a step-by-step pla
 </form>
 
 <section class="card">
+  <h2>What every Team Audit includes</h2>
+  <ul class="steps">
+    <li><b>Browser audit</b> — each person runs the private, read-only extension for a few days.</li>
+    <li><b>Back-Office Check</b> — your processes and SOPs, follow-up, contracts, compliance and data security, set up the way <?= h((string) cfg('brand_name')) ?> would set up your back office.</li>
+    <li><b>Instant AI report</b> — your bottlenecks, the AI agents you need, a step-by-step fix and what it is costing you.</li>
+    <li><b>Final plan from our team</b> — reviewed by a person, with the SOPs to write first. If we build your agents, the audit price is credited toward the build.</li>
+  </ul>
+  <h3>Every industry is checked differently</h3>
+  <div class="grid industry-grid">
+    <?php foreach (industry_highlights() as $key => $checks): ?>
+      <div class="card<?= $key === $industry ? ' featured' : '' ?>" style="margin:0">
+        <b><?= h(industry_label($key)) ?></b>
+        <ul class="small"><?php foreach ($checks as $c): ?><li><?= h($c) ?></li><?php endforeach; ?></ul>
+      </div>
+    <?php endforeach; ?>
+  </div>
+  <p class="disclaimer">Compliance checks are general guidance for your industry, not legal advice.</p>
+</section>
+
+<section class="card">
   <h2>After the audit: <?= h((string) $monitoring['name']) ?> <span class="badge"><?= h((string) $monitoring['price_label']) ?></span></h2>
   <p class="muted">Optional. Keep the audit running every month after your agents are built, and see what improved:
     hours tracked, repeated tasks per hour and tab-jumping, month by month. Turn it on from your Business Portal; cancel any time.</p>
 </section>
 
 <section class="card">
-  <h2>Just you? Try it free</h2>
+  <h2>Just you? Run a free audit</h2>
   <p class="muted">The free Chrome extension runs one 5-hour audit and shows your #1 repetitive task, the AI agent that can do it,
     and a step-by-step fix.</p>
 </section>

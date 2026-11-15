@@ -40,6 +40,9 @@
     .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 
     ul.checks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    select { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 10px; font: inherit; outline: none; }
+    .team-offer ul.checks { font-size: 12.5px; }
     ul.checks li::before { content: "✓"; color: var(--green); font-weight: 700; margin-right: 8px; }
 
     input[type="text"], input[type="url"] { width: 100%; background: var(--panel-2); color: var(--text);
@@ -125,6 +128,9 @@
       <label class="field">Your role (optional)
         <input type="text" class="role-input" maxlength="40" placeholder="e.g. Sales, Office Manager" autocomplete="off">
       </label>
+      <label class="field">Your industry (optional)
+        <select class="industry-select"></select>
+      </label>
       <button id="startBtn" class="primary" type="button">Start my free audit</button>
     </section>
 
@@ -180,11 +186,24 @@
       <div id="resultsBody"></div>
 
       <div class="actions">
-        <button id="copyPromptBtn" type="button">Copy full AI report (paste into ChatGPT or Claude)</button>
+        <button id="copyPromptBtn" type="button">Copy report prompt for ChatGPT or Claude</button>
         <button id="downloadBtn" type="button">Download my data</button>
 
         <div id="liteDoneBox" class="actions">
           <p class="muted small" style="text-align:center">Your free audit is complete.</p>
+          <div class="result team-offer">
+            <div class="label">What a Team Audit adds</div>
+            <ul class="checks">
+              <li>Your whole team, not just you</li>
+              <li>Back-Office Check: processes, SOPs, follow-up, contracts and data security</li>
+              <li id="industryLine">Checks for your industry</li>
+              <li>An instant AI report, plus a final plan from our team</li>
+              <li>We can build the agents for you</li>
+            </ul>
+            <label class="field">Your industry
+              <select class="industry-select"></select>
+            </label>
+          </div>
           <button class="upgrade upgrade-btn" type="button">Audit my whole team →</button>
         </div>
 
@@ -210,7 +229,7 @@
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <!-- Business key -->
+    <!-- Team key -->
     <div id="keyLinkRow" class="key-row"><button id="keyLink" class="link" type="button">Have a team key?</button></div>
     <section id="keyBox" class="card hidden">
       <label class="field">Team key
@@ -228,6 +247,7 @@
     <footer>We only see website names and time spent.<br>Never what you type, read or click.</footer>
   </div>
 
+  <script src="industries.js"></script>
   <script src="insights.js"></script>
   <script src="popup.js"></script>
 </body>

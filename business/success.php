@@ -42,10 +42,10 @@ render_header('Payment confirmed');
   <section class="card">
     <h2>Next steps</h2>
     <ol class="steps">
-      <li>Each person installs the <b>Workflow Shadow Audit</b> extension, clicks <b>Have a Business key?</b>, pastes the key and turns tracking on.</li>
+      <li>Each person installs the <b>Workflow Shadow Audit</b> extension, clicks <b>Have a team key?</b>, pastes the key and turns tracking on.</li>
       <li>Everyone works normally for a few days.</li>
       <li>Each person clicks <b>Send to my Business Portal</b>.</li>
-      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, fill in your business profile (social media, tools, goals), and get your report.</li>
+      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, fill in your business profile and the Back-Office Check, then get your instant AI report. Our team follows up with your final plan.</li>
     </ol>
     <a class="btn primary" href="portal.php">Open Business Portal →</a>
   </section>

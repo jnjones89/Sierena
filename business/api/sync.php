@@ -16,7 +16,7 @@ $body    = read_json_body(2_000_000);
 $license = find_license_by_key((string) ($body['key'] ?? ''));
 
 if (!license_is_active($license)) {
-    json_out(['ok' => false, 'error' => 'License key is not active. ' . license_inactive_reason($license)], 403);
+    json_out(['ok' => false, 'error' => 'Your team key is not active. ' . license_inactive_reason($license)], 403);
 }
 $deviceId = $body['deviceId'] ?? null;
 if (!valid_device_id($deviceId)) {

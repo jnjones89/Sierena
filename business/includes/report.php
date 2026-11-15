@@ -24,7 +24,13 @@ function render_profile_form(array $profile, bool $editable = true): void
         foreach ($keys as $key) {
             [$label, $type, $ph] = $fields[$key];
             $val = $profile[$key] ?? '';
-            if ($type === 'textarea') {
+            if ($type === 'select') {
+                $opts = '<option value="">Choose your industry…</option>';
+                foreach (industries() as $k => $lbl) {
+                    $opts .= '<option value="' . h($k) . '"' . ($k === $val ? ' selected' : '') . '>' . h($lbl) . '</option>';
+                }
+                echo '<label>' . h($label) . '<select name="' . h($key) . '"' . $dis . '>' . $opts . '</select></label>';
+            } elseif ($type === 'textarea') {
                 echo '<label style="grid-column:1/-1">' . h($label)
                     . '<textarea name="' . h($key) . '" maxlength="4000" placeholder="' . h($ph) . '"' . $dis . '>' . h($val) . '</textarea></label>';
             } else {
@@ -45,7 +51,7 @@ function render_profile_readonly(array $profile): void
         if ($val === '') {
             continue;
         }
-        $display = h($val);
+        $display = $key === 'industry' ? h(industry_label($val)) : h($val);
         if ($fields[$key][1] === 'url' && preg_match('#^https?://#i', $val)) {
             $display = '<a href="' . h($val) . '" target="_blank" rel="noopener noreferrer">' . h($val) . '</a>';
         }
@@ -65,7 +71,7 @@ function render_telemetry(array $aggregate, array $audits, bool $canDelete): voi
         . '</div>';
 
     if (!$audits) {
-        echo '<p class="muted">No audits yet. In the extension, click <b>Sync to Business Portal</b>, or upload an exported JSON file below.</p>';
+        echo '<p class="muted">No audits yet. In the extension, each person clicks <b>Send to my Business Portal</b>. You can also upload an exported audit file below.</p>';
         return;
     }
 
@@ -102,7 +108,7 @@ function render_telemetry(array $aggregate, array $audits, bool $canDelete): voi
 function render_prompt_box(string $prompt): void
 {
     echo '<textarea class="prompt" id="gapPrompt" readonly>' . h($prompt) . '</textarea>'
-        . '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-copy="gapPrompt">Copy AI Gap Analysis Prompt</button>'
+        . '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-copy="gapPrompt">Copy report prompt</button>'
         . '<span class="muted small">Paste into Claude or ChatGPT to generate the client report and agent plan.</span></div>';
 }
 
@@ -135,4 +141,55 @@ function render_progress(array $months): void
     } else {
         echo '<p class="muted small">Send in audits next month to compare.</p>';
     }
+}
+
+function render_checklist_form(string $industry, array $answers, bool $editable): void
+{
+    $items = checklist_items($industry);
+    $byArea = [];
+    foreach ($items as $item) {
+        $byArea[$item['area']][] = $item;
+    }
+    $dis = $editable ? '' : ' disabled';
+    echo '<form method="post" action="portal.php" class="checklist">' . csrf_field() . '<input type="hidden" name="action" value="save_checklist">';
+    foreach (CHECK_AREAS as $area => $areaLabel) {
+        if (empty($byArea[$area])) {
+            continue;
+        }
+        echo '<h3 class="muted small" style="text-transform:uppercase;letter-spacing:.06em;margin:18px 0 8px">' . h($areaLabel) . '</h3>';
+        foreach ($byArea[$area] as $item) {
+            $cur = $answers[$item['id']] ?? '';
+            echo '<fieldset class="check-item"><legend>' . h($item['q']) . '</legend>'
+                . '<div class="muted small">' . h($item['why']) . '</div><div class="check-answers">';
+            foreach (CHECK_ANSWERS as $val => $lbl) {
+                echo '<label class="pill-radio"><input type="radio" name="' . h($item['id']) . '" value="' . h($val) . '"'
+                    . ($cur === $val ? ' checked' : '') . $dis . '><span>' . h($lbl) . '</span></label>';
+            }
+            echo '</div></fieldset>';
+        }
+    }
+    echo $editable ? '<button class="btn primary" type="submit">Save Back-Office Check</button></form>' : '</form>';
+}
+
+function render_checklist_summary(array $summary, bool $showGaps = true): void
+{
+    if ($summary['answered'] === 0) {
+        echo '<p class="muted">Not answered yet.</p>';
+        return;
+    }
+    echo '<div class="stats"><div class="stat"><b>' . (int) $summary['score'] . '%</b><span>Back-office readiness ('
+        . (int) $summary['answered'] . ' of ' . (int) $summary['total'] . ' answered)</span></div>';
+    foreach ($summary['areas'] as $area) {
+        echo '<div class="stat"><b>' . ($area['score'] === null ? '—' : (int) $area['score'] . '%') . '</b><span>' . h($area['label']) . '</span></div>';
+    }
+    echo '</div>';
+    if (!$showGaps || !$summary['gaps']) {
+        return;
+    }
+    echo '<h3>Gaps and how we would automate them</h3><div class="table-wrap"><table><tr><th>Area</th><th>Gap</th><th>Answer</th><th>How it can be automated</th></tr>';
+    foreach (array_slice($summary['gaps'], 0, 15) as $g) {
+        echo '<tr><td>' . h(CHECK_AREAS[$g['area']]) . '</td><td>' . h($g['q']) . '</td><td>' . h(CHECK_ANSWERS[$g['answer']])
+            . '</td><td>' . h($g['auto']) . '</td></tr>';
+    }
+    echo '</table></div>';
 }

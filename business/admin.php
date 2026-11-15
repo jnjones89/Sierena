@@ -1,7 +1,7 @@
 <?php
 /*
  * Owner dashboard — see every Business customer, their profile, team telemetry
- * and the ready-made AI Gap Analysis prompt. Also lists free (Lite) leads.
+ * and the ready-made report prompt. Also lists free audit leads.
  */
 declare(strict_types=1);
 require __DIR__ . '/includes/lib.php';
@@ -138,6 +138,8 @@ if (isset($_GET['view'])) {
     </section>
 
     <section class="card"><h2>Business profile</h2><?php render_profile_readonly($profile); ?></section>
+    <section class="card"><h2>Back-Office Check<?= $profile['industry'] ? ' · ' . h(industry_label($profile['industry'])) : '' ?></h2>
+      <?php render_checklist_summary(checklist_summary($profile['industry'] ?: 'other', load_checklist($lid))); ?></section>
     <section class="card"><h2>Team telemetry</h2><?php render_telemetry($aggregate, $audits, false); ?><?php render_progress(progress_by_month($audits)); ?></section>
     <section class="card"><h2>Connected browsers</h2>
       <?php if (!$devices): ?><p class="muted">None yet.</p><?php else: ?>
@@ -146,7 +148,7 @@ if (isset($_GET['view'])) {
         </table></div>
       <?php endif; ?>
     </section>
-    <section class="card"><h2>Report prompt</h2><?php render_prompt_box(build_business_prompt($license, $profile, $aggregate)); ?></section>
+    <section class="card"><h2>Report prompt</h2><?php render_prompt_box(build_business_prompt($license, $profile, $aggregate, load_checklist($lid))); ?></section>
     <?php
     render_footer();
     exit;
@@ -188,7 +190,7 @@ $leads = db()->query('SELECT * FROM leads ORDER BY id DESC LIMIT 200')->fetchAll
   </section>
 
   <section class="card">
-    <h2>Lite leads (latest <?= count($leads) ?>)</h2>
+    <h2>Free audit leads (latest <?= count($leads) ?>)</h2>
     <?php if (!$leads): ?>
       <p class="muted">No leads yet.</p>
     <?php else: ?>

@@ -11,7 +11,10 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
    ──► success.php: verifies payment, creates the team key AUDIT-XXXX-XXXX-XXXX-XXXX (also emailed)
    ──► each teammate pastes the key in the extension (one seat per browser, up to the plan's limit)
    ──► "Send to my Business Portal" ──► portal.php
-         • business profile (social media, tools, goals)
+         • business profile (industry, social media, tools, goals)
+         • Back-Office Check: processes & SOPs, follow-up, contracts, compliance and data security,
+           with extra checks per industry (insurance, lending, credit repair, real estate, healthcare,
+           legal, home services, e-commerce, agencies) and how each gap can be automated
          • "Get my instant report" — Claude writes it in 1–2 minutes
          • your team reviews it in admin.php and publishes the final plan (customer gets an email)
          • "Book a call to build these agents" → your booking link (audit price credited toward the build)
@@ -26,6 +29,7 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
 | How long | One 5-hour audit | 30 days (set `audit_access_days`) | as long as the subscription is active |
 | Results in the extension | ✅ after work email | ✅ live | ✅ live |
 | Company portal + business profile | — | ✅ | ✅ |
+| Back-Office Check for their industry | — | ✅ | ✅ |
 | Instant AI report + final plan from your team | — | ✅ | ✅ |
 | Month-by-month progress | — | — | ✅ |
 
@@ -64,16 +68,20 @@ In `workflow-shadow-audit/popup.js` set `const BUSINESS_BASE_URL = 'https://YOUR
 1. Buy the Starter plan on `/business/` → copy the key from the success page.
 2. Paste it in the extension (**Have a team key?**) → it shows "Starter Team Audit · until …".
 3. Seed some activity, click **Send to my Business Portal**, sign in to `/business/portal.php`.
-4. Fill the profile → **Get my instant report**.
+4. Fill the business profile (pick an industry) and the Back-Office Check → **Get my instant AI report**.
 5. Open `/business/admin.php` → the customer shows "Needs follow-up" → publish the final plan.
 6. Click **Turn on Results Tracking** in the portal and subscribe → status shows "Monthly".
 Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
 
 ## Admin tools (`admin.php`)
 - Customers with plan, status, audits and report status ("Needs follow-up" / "Plan sent").
-- Per customer: publish the final plan (prefilled with the AI draft), extend the audit 30 days, free all seats,
+- Per customer: Back-Office Check scores and gaps, publish the final plan (prefilled with the AI draft), extend the audit 30 days, free all seats,
   see connected browsers, profile, team data and month-by-month progress.
-- Free Lite leads.
+- Free audit leads.
+
+## Wording
+`MESSAGING.md` lists the exact names, buttons and promise lines used everywhere (extension, pages, emails).
+Industry lists live in `includes/industries.php` and `../workflow-shadow-audit/industries.js` — keep them identical.
 
 ## Files
 - `index.php` pricing · `checkout.php` one-time audit · `success.php` · `monitor.php` Results Tracking · `webhook.php` · `billing.php`
