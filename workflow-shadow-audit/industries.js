@@ -14,8 +14,12 @@ const INDUSTRIES = {
     label: 'Lending & loan brokers',
     checks: ['Licensing and written fee disclosures', 'Credit-pull permission and data security', 'Document chasing and status updates']
   },
+  funding: {
+    label: 'Business funding & bank approvals',
+    checks: ['Fee agreements and state disclosures', 'Secure, verified bank statements', 'Lender submissions, approvals and renewals']
+  },
   credit: {
-    label: 'Credit repair & business funding',
+    label: 'Credit repair',
     checks: ['Credit repair contract, disclosures and 3-day cancel right', 'No fees before the work is done', 'Dispute tracking and client updates']
   },
   real_estate: {

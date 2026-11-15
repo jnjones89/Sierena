@@ -48,7 +48,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 Never say a client "is compliant" or that we make them compliant.
 
 ## Industries (same list in the extension and on the server)
-Insurance agency · Lending & loan brokers · Credit repair & business funding · Real estate · Healthcare & med spas ·
+Insurance agency · Lending & loan brokers · Business funding & bank approvals · Credit repair · Real estate · Healthcare & med spas ·
 Law firms · Home services & contractors · E-commerce · Agencies & consultants · Other.
 Source of truth: `business/includes/industries.php` and `workflow-shadow-audit/industries.js` (keep them identical).
 

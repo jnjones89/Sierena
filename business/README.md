@@ -15,7 +15,7 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
    ──► "Send to my Business Portal" ──► portal.php
          • business profile (industry, social media, tools, goals)
          • Back-Office Check: processes & SOPs, follow-up, contracts, compliance and data security,
-           with extra checks per industry (insurance, lending, credit repair, real estate, healthcare,
+           with extra checks per industry (insurance, lending, business funding, credit repair, real estate, healthcare,
            legal, home services, e-commerce, agencies) and how each gap can be automated
          • "Get my instant report" — Claude writes it in 1–2 minutes
          • your team reviews it in admin.php and publishes the final plan (customer gets an email)
