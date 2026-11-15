@@ -5,6 +5,7 @@
  *   URL:    https://YOUR-DOMAIN/business/webhook.php
  *   Events: checkout.session.completed, checkout.session.async_payment_succeeded,
  *           customer.subscription.updated, customer.subscription.deleted
+ * One-time Team Audits and the monthly Results Tracking plan both arrive here.
  */
 declare(strict_types=1);
 require __DIR__ . '/includes/lib.php';

@@ -1,68 +1,82 @@
-# Workflow Shadow Audit — Business server (Hostinger + Stripe)
+# Workflow Shadow Audit — Team Audit server (Hostinger + Stripe + Claude)
 
-Plain PHP 8 + MySQL. No Composer, no Node. Runs on any Hostinger web hosting plan.
+Plain PHP 8.1+ and MySQL. Runs on Hostinger web hosting. Composer packages (Anthropic SDK + Guzzle) are already
+included in `vendor/`, so you only upload the folder.
 
-## How the paid flow works
+## How it works
 
 ```
-Extension "Upgrade to Business" ──► /business/ (pricing page)
-        ──► checkout.php ──► Stripe Checkout (customer pays)
-        ──► success.php  (verifies payment with Stripe, creates AUDIT-XXXX-XXXX-XXXX-XXXX key, emails it)
-        ──► customer pastes key in extension ──► api/validate.php confirms it's active
-        ──► "Sync to Business Portal" ──► api/sync.php stores the audit
-        ──► portal.php: company profile + social media + team audits + AI Agent Gap prompt
-Stripe webhook.php keeps the key active/inactive when a subscription renews, fails or is canceled.
-You see every customer, profile and lead in admin.php.
+Free extension user ──► "Audit my whole team" ──► /business/ (pricing: Starter / Team / Company, priced by team size)
+   ──► checkout.php ──► Stripe (one-time payment)
+   ──► success.php: verifies payment, creates the team key AUDIT-XXXX-XXXX-XXXX-XXXX (also emailed)
+   ──► each teammate pastes the key in the extension (one seat per browser, up to the plan's limit)
+   ──► "Send to my Business Portal" ──► portal.php
+         • business profile (social media, tools, goals)
+         • "Get my instant report" — Claude writes it in 1–2 minutes
+         • your team reviews it in admin.php and publishes the final plan (customer gets an email)
+         • "Book a call to build these agents" → your booking link (audit price credited toward the build)
+   ──► optional: "Turn on Results Tracking" ($/month subscription) keeps the key working after the
+       audit window and shows month-by-month progress.
 ```
 
-## Setup (about 20 minutes)
+## Plans
+| | Free (extension) | Team Audit (one-time) | Results Tracking (monthly, optional) |
+|---|---|---|---|
+| People | 1 | 5 / 15 / 50 by plan | same as the plan |
+| How long | One 5-hour audit | 30 days (set `audit_access_days`) | as long as the subscription is active |
+| Results in the extension | ✅ after work email | ✅ live | ✅ live |
+| Company portal + business profile | — | ✅ | ✅ |
+| Instant AI report + final plan from your team | — | ✅ | ✅ |
+| Month-by-month progress | — | — | ✅ |
+
+## Setup
 
 ### 1. Stripe
-1. Stripe Dashboard → **Product catalog → Add product** "Workflow Shadow Audit Business", add a recurring price (e.g. $97/month). Copy the **Price ID** (`price_…`).
-2. **Developers → API keys** → copy the **Secret key** (`sk_test_…` while testing).
-3. **Developers → Webhooks → Add endpoint**
-   - URL: `https://YOURDOMAIN.com/business/webhook.php`
-   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.updated`, `customer.subscription.deleted`
-   - Copy the **Signing secret** (`whsec_…`).
-4. **Settings → Billing → Customer portal** → turn it on (lets customers update cards / cancel from the portal's "Manage billing" button).
+1. **Product catalog → Add product** "Team Audit" with **three one-time prices** (e.g. $297, $497, $997). Copy each Price ID.
+2. Add a product "Results Tracking" with a **recurring monthly price** (e.g. $97). Copy the Price ID.
+3. **Developers → API keys** → copy the Secret key.
+4. **Developers → Webhooks → Add endpoint** `https://YOURDOMAIN.com/business/webhook.php` with events
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.updated`,
+   `customer.subscription.deleted`. Copy the Signing secret.
+5. **Settings → Billing → Customer portal** → turn it on (customers manage Results Tracking and invoices).
 
-### 2. Hostinger
-1. hPanel → **Databases → MySQL Databases** → create a database + user. Note the name, user and password (they look like `u123456789_swa`).
-2. hPanel → **Emails** → create a mailbox such as `audit@yourdomain.com` (used as the sender).
-3. hPanel → **File Manager** → open `public_html` → create a folder `business` → upload everything in this folder into it (keep the `includes`, `api`, `assets` sub-folders and the `.htaccess` files).
-4. Copy `includes/config.sample.php` to **`swa-config.php` one level above `public_html`** (most secure), or to `includes/config.php`. Fill in every value.
-5. Make sure SSL is on (hPanel → **Security → SSL**). Stripe requires https.
+### 2. Claude (instant report)
+1. console.anthropic.com → **API keys** → create a key and add a few dollars of credit. Each report costs a few cents.
+2. Paste it as `anthropic_api_key`. Leave it empty to turn instant reports off — you can still publish plans from admin.php.
 
-Tables are created automatically on the first request — no SQL import needed.
+### 3. Hostinger
+1. hPanel → **Databases → MySQL Databases** → create a database + user.
+2. hPanel → **Emails** → create `audit@yourdomain.com` (the sender).
+3. Zip this `business` folder on your computer, then in hPanel **File Manager** open `public_html`, upload the zip and
+   **Extract** it (much faster than uploading thousands of `vendor/` files one by one). You should end up with `public_html/business/`.
+4. Copy `includes/config.sample.php` to **`swa-config.php` one level above `public_html`** and fill in every value
+   (plans' Price IDs, Results Tracking Price ID, Stripe keys, Anthropic key, database, emails, booking link, admin password).
+5. hPanel → **Advanced → PHP Configuration**: PHP 8.1 or newer, and set `max_execution_time` to **300** so the
+   instant report has time to finish.
+6. Make sure SSL is on (hPanel → Security → SSL).
 
-### 3. Extension
-In `workflow-shadow-audit/popup.js`, set:
-```js
-const BUSINESS_BASE_URL = 'https://YOURDOMAIN.com/business';
-```
-Reload the extension in `chrome://extensions`.
+Database tables are created automatically on the first visit.
 
-### 4. Test with Stripe test mode
-1. Visit `https://YOURDOMAIN.com/business/`, enter an email + company, pay with card `4242 4242 4242 4242`, any future date, any CVC.
-2. You land on the success page with your key. Paste it into the extension → it shows **Business**.
-3. Click **Sync to Business Portal**, then **Open Business Portal** and sign in with the same email + key.
-4. Open `/business/admin.php` with your admin password — you'll see the customer.
-5. In Stripe, cancel the test subscription → the key stops working in the extension within 12 hours (immediately on next unlock/sync).
+### 4. Extension
+In `workflow-shadow-audit/popup.js` set `const BUSINESS_BASE_URL = 'https://YOURDOMAIN.com/business';` and reload it.
 
-When everything works, swap `sk_test_` / `whsec_` / `price_` values for your **live** ones (the live webhook has its own signing secret).
+### 5. Test (Stripe test mode, card 4242 4242 4242 4242)
+1. Buy the Starter plan on `/business/` → copy the key from the success page.
+2. Paste it in the extension (**Have a team key?**) → it shows "Starter Team Audit · until …".
+3. Seed some activity, click **Send to my Business Portal**, sign in to `/business/portal.php`.
+4. Fill the profile → **Get my instant report**.
+5. Open `/business/admin.php` → the customer shows "Needs follow-up" → publish the final plan.
+6. Click **Turn on Results Tracking** in the portal and subscribe → status shows "Monthly".
+Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
 
-## Tiers
-| | Lite (free) | Business (paid key) |
-|---|---|---|
-| Tracking | One audit, stops at 5 tracked hours (or after 24h with 2+ hours) | No limit, start new audits any time |
-| Results: repeated task, AI agent, step-by-step fix | ✅ after entering a work email | ✅ live, any time |
-| Download data + full AI report prompt | ✅ | ✅ |
-| Sync to company portal | — | ✅ |
-| Webhook (Make / n8n) | — | ✅ |
-| Business profile, social media, team AI Agent Gap Map | — | ✅ |
+## Admin tools (`admin.php`)
+- Customers with plan, status, audits and report status ("Needs follow-up" / "Plan sent").
+- Per customer: publish the final plan (prefilled with the AI draft), extend the audit 30 days, free all seats,
+  see connected browsers, profile, team data and month-by-month progress.
+- Free Lite leads.
 
 ## Files
-- `index.php` pricing/upgrade page · `checkout.php` · `success.php` · `webhook.php` · `billing.php`
+- `index.php` pricing · `checkout.php` one-time audit · `success.php` · `monitor.php` Results Tracking · `webhook.php` · `billing.php`
 - `portal.php` customer portal · `admin.php` your dashboard
 - `api/validate.php`, `api/sync.php`, `api/lead.php` — called by the extension
-- `includes/` — library + config (blocked from the web by `.htaccess`)
+- `includes/` library + config, `vendor/` Composer packages (both blocked from the web)

@@ -58,3 +58,17 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
 .prompt { width: 100%; min-height: 200px; font: 12px/1.45 ui-monospace, Menlo, Consolas, monospace; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .steps { padding-left: 20px; } .steps li { margin: 6px 0; }
+.selectable { cursor: pointer; }
+.selectable input[type=radio] { accent-color: var(--accent); width: 18px; height: 18px; margin: 0 0 8px; }
+hr.sep { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+details.more-box { margin-top: 14px; }
+details.more-box summary { cursor: pointer; margin-bottom: 8px; }
+.report { line-height: 1.6; }
+.report h2, .report h3, .report h4 { margin: 18px 0 8px; }
+.report h2 { font-size: 18px; } .report h3 { font-size: 16px; } .report h4 { font-size: 15px; }
+.report p { margin: 8px 0; }
+.report ul, .report ol { padding-left: 22px; margin: 8px 0; }
+.report li { margin: 4px 0; }
+.report table { margin: 10px 0; }
+.report code, code { background: var(--panel-2); padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+textarea:disabled, input:disabled { opacity: .6; }

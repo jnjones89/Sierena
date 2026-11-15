@@ -29,23 +29,23 @@ if (!preg_match('/^cs_[A-Za-z0-9_]{10,255}$/', $sessionId)) {
 render_header('Payment confirmed');
 ?>
 <?php if ($license): ?>
-  <h1>You're on Business 🎉</h1>
-  <p class="lead">Payment confirmed for <?= h($license['company'] ?: $license['email']) ?>. Here is your license key — we've also emailed it to <?= h($license['email']) ?>.</p>
+  <h1>Payment confirmed 🎉</h1>
+  <p class="lead"><?= h(plan_name($license)) ?> for <?= h($license['company'] ?: $license['email']) ?> — up to <?= (int) $license['seats'] ?> people, open until <?= h(format_date($license['access_until'])) ?>. We've also emailed this key to <?= h($license['email']) ?>.</p>
 
   <section class="card">
-    <h2>Your license key</h2>
+    <h2>Your team key</h2>
     <div class="key" id="licenseKey"><?= h($license['license_key']) ?></div>
     <button class="btn primary" type="button" data-copy="licenseKey">Copy key</button>
-    <p class="muted small">Keep it private. Share it only with teammates who should sync audits to your company portal.</p>
+    <p class="muted small">Share it only with the teammates you want audited. Each person's browser uses one of your <?= (int) $license['seats'] ?> seats.</p>
   </section>
 
   <section class="card">
     <h2>Next steps</h2>
     <ol class="steps">
-      <li>Open the <b>Workflow Shadow Audit</b> extension, paste the key in the unlock box and click <b>Unlock</b>.</li>
-      <li>Give the same key to each teammate you want audited — they paste it into their extension too.</li>
-      <li>After a few days of shadowing, click <b>Sync to Business Portal</b> in each extension.</li>
-      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, and fill in your business profile (social media, tools, goals).</li>
+      <li>Each person installs the <b>Workflow Shadow Audit</b> extension, clicks <b>Have a Business key?</b>, pastes the key and turns tracking on.</li>
+      <li>Everyone works normally for a few days.</li>
+      <li>Each person clicks <b>Send to my Business Portal</b>.</li>
+      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, fill in your business profile (social media, tools, goals), and get your report.</li>
     </ol>
     <a class="btn primary" href="portal.php">Open Business Portal →</a>
   </section>

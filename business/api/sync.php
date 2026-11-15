@@ -16,7 +16,15 @@ $body    = read_json_body(2_000_000);
 $license = find_license_by_key((string) ($body['key'] ?? ''));
 
 if (!license_is_active($license)) {
-    json_out(['ok' => false, 'error' => 'License key is not active.'], 403);
+    json_out(['ok' => false, 'error' => 'License key is not active. ' . license_inactive_reason($license)], 403);
+}
+$deviceId = $body['deviceId'] ?? null;
+if (!valid_device_id($deviceId)) {
+    json_out(['ok' => false, 'error' => 'Please update the Workflow Shadow Audit extension.'], 422);
+}
+$roleTag = (string) ($body['payload']['auditMetadata']['roleTag'] ?? '');
+if ($reason = claim_seat($license, $deviceId, $roleTag)) {
+    json_out(['ok' => false, 'error' => $reason], 403);
 }
 
 $clean = sanitize_audit_payload($body['payload'] ?? null);

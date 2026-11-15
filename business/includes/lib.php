@@ -67,10 +67,11 @@ function db(): PDO
 function ensure_schema(PDO $pdo): void
 {
     try {
-        $pdo->query('SELECT 1 FROM rate_hits LIMIT 1');
-        return; // schema already present
+        $pdo->query('SELECT monitor_status FROM licenses LIMIT 1');
+        $pdo->query('SELECT 1 FROM reports LIMIT 1');
+        return; // schema is current
     } catch (PDOException $e) {
-        // create below
+        // create / upgrade below
     }
 
     $isMysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
@@ -87,8 +88,48 @@ function ensure_schema(PDO $pdo): void
         stripe_session_id VARCHAR(255) NOT NULL UNIQUE,
         stripe_customer_id VARCHAR(255) NULL,
         stripe_subscription_id VARCHAR(255) NULL,
+        plan VARCHAR(20) NOT NULL DEFAULT 'starter',
+        seats INT NOT NULL DEFAULT 5,
+        access_until VARCHAR(32) NULL,
+        monitor_status VARCHAR(20) NOT NULL DEFAULT 'none',
+        monitor_subscription_id VARCHAR(255) NULL,
         created_at VARCHAR(32) NOT NULL,
         updated_at VARCHAR(32) NOT NULL
+    )$suffix");
+
+    // Upgrade a licenses table created by an earlier version.
+    $newColumns = [
+        'plan'                    => "VARCHAR(20) NOT NULL DEFAULT 'starter'",
+        'seats'                   => 'INT NOT NULL DEFAULT 5',
+        'access_until'            => 'VARCHAR(32) NULL',
+        'monitor_status'          => "VARCHAR(20) NOT NULL DEFAULT 'none'",
+        'monitor_subscription_id' => 'VARCHAR(255) NULL',
+    ];
+    foreach ($newColumns as $column => $definition) {
+        try {
+            $pdo->query("SELECT $column FROM licenses LIMIT 1");
+        } catch (PDOException $e) {
+            $pdo->exec("ALTER TABLE licenses ADD COLUMN $column $definition");
+        }
+    }
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS devices (
+        id $id,
+        license_id INT NOT NULL,
+        device_id VARCHAR(64) NOT NULL,
+        role_tag VARCHAR(80) NOT NULL DEFAULT '',
+        first_seen VARCHAR(32) NOT NULL,
+        last_seen VARCHAR(32) NOT NULL,
+        UNIQUE (license_id, device_id)
+    )$suffix");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS reports (
+        id $id,
+        license_id INT NOT NULL,
+        kind VARCHAR(10) NOT NULL,
+        content $text NOT NULL,
+        model VARCHAR(64) NOT NULL DEFAULT '',
+        created_at VARCHAR(32) NOT NULL
     )$suffix");
 
     $pdo->exec("CREATE TABLE IF NOT EXISTS profiles (
@@ -371,14 +412,53 @@ function find_license_by_id(int $id): ?array
     return $stmt->fetch() ?: null;
 }
 
+function plan_info(string $plan): ?array
+{
+    $plans = (array) cfg('plans');
+    return isset($plans[$plan]) ? $plans[$plan] : null;
+}
+
+function plan_name(array $license): string
+{
+    $info = plan_info((string) $license['plan']);
+    return $info ? (string) $info['name'] : 'Team Audit';
+}
+
+function license_monitoring(array $license): bool
+{
+    return $license['monitor_status'] === 'active';
+}
+
 function license_is_active(?array $license): bool
 {
-    return $license !== null && $license['status'] === 'active';
+    if ($license === null || $license['status'] !== 'active') {
+        return false;
+    }
+    if (license_monitoring($license)) {
+        return true;
+    }
+    return !empty($license['access_until']) && $license['access_until'] > now_iso();
+}
+
+function license_inactive_reason(?array $license): string
+{
+    if ($license === null) {
+        return 'License key not found.';
+    }
+    if ($license['status'] !== 'active') {
+        return 'This license has been turned off. Contact us for help.';
+    }
+    return 'Your audit window has ended. Turn on Results Tracking in your Business Portal to keep going.';
+}
+
+function format_date(?string $iso): string
+{
+    return $iso ? date('M j, Y', strtotime($iso)) : '';
 }
 
 /**
- * Create (once) the license for a paid Checkout Session.
- * Safe to call from both the success page and the webhook — idempotent on session id.
+ * Fulfill a paid Checkout Session (a Team Audit purchase or a Results Tracking
+ * subscription). Idempotent — safe to call from both the success page and the webhook.
  */
 function fulfill_checkout_session(array $session): ?array
 {
@@ -386,6 +466,9 @@ function fulfill_checkout_session(array $session): ?array
         && in_array($session['payment_status'] ?? '', ['paid', 'no_payment_required'], true);
     if (!$paid || empty($session['id'])) {
         return null;
+    }
+    if (($session['metadata']['kind'] ?? '') === 'monitoring') {
+        return fulfill_monitoring_session($session);
     }
 
     $pdo  = db();
@@ -395,16 +478,23 @@ function fulfill_checkout_session(array $session): ?array
         return $existing;
     }
 
-    $email   = (string) ($session['customer_details']['email'] ?? $session['customer_email'] ?? '');
-    $company = mb_substr((string) ($session['metadata']['company'] ?? ''), 0, 255);
-    $now     = now_iso();
+    $planKey = (string) ($session['metadata']['plan'] ?? '');
+    $plan    = plan_info($planKey);
+    if ($plan === null) {
+        throw new RuntimeException('Checkout session has an unknown plan: ' . $planKey);
+    }
+
+    $email       = (string) ($session['customer_details']['email'] ?? $session['customer_email'] ?? '');
+    $company     = mb_substr((string) ($session['metadata']['company'] ?? ''), 0, 255);
+    $now         = now_iso();
+    $accessUntil = gmdate('Y-m-d\TH:i:s\Z', time() + 86400 * (int) cfg('audit_access_days'));
 
     for ($attempt = 0; $attempt < 5; $attempt++) {
         $key = generate_license_key();
         try {
             $pdo->prepare('INSERT INTO licenses
-                (license_key, email, company, status, stripe_session_id, stripe_customer_id, stripe_subscription_id, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                (license_key, email, company, status, stripe_session_id, stripe_customer_id, plan, seats, access_until, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 ->execute([
                     $key,
                     strtolower($email),
@@ -412,7 +502,9 @@ function fulfill_checkout_session(array $session): ?array
                     'active',
                     $session['id'],
                     is_string($session['customer'] ?? null) ? $session['customer'] : null,
-                    is_string($session['subscription'] ?? null) ? $session['subscription'] : null,
+                    $planKey,
+                    (int) $plan['people'],
+                    $accessUntil,
                     $now,
                     $now,
                 ]);
@@ -437,37 +529,123 @@ function fulfill_checkout_session(array $session): ?array
     return $license;
 }
 
+function fulfill_monitoring_session(array $session): ?array
+{
+    $license = find_license_by_id((int) ($session['metadata']['license_id'] ?? 0));
+    $subscription = is_string($session['subscription'] ?? null) ? $session['subscription'] : null;
+    if (!$license || !$subscription) {
+        return null;
+    }
+    if ($license['monitor_subscription_id'] === $subscription && license_monitoring($license)) {
+        return $license; // already done
+    }
+    db()->prepare('UPDATE licenses SET monitor_status = ?, monitor_subscription_id = ?,
+            stripe_customer_id = COALESCE(stripe_customer_id, ?), updated_at = ? WHERE id = ?')
+        ->execute([
+            'active',
+            $subscription,
+            is_string($session['customer'] ?? null) ? $session['customer'] : null,
+            now_iso(),
+            (int) $license['id'],
+        ]);
+    send_mail(
+        (string) cfg('owner_email'),
+        'Results Tracking started: ' . ($license['company'] ?: $license['email']),
+        "{$license['company']} ({$license['email']}) turned on monthly Results Tracking.\n\nAdmin: "
+        . site_url('admin.php?view=' . (int) $license['id']) . "\n"
+    );
+    return find_license_by_id((int) $license['id']);
+}
+
 function notify_new_license(array $license): void
 {
     $brand = (string) cfg('brand_name');
+    $plan  = plan_name($license);
+    $until = format_date($license['access_until']);
     send_mail(
         $license['email'],
-        "Your $brand Workflow Shadow Audit Business key",
-        "Thanks for upgrading to Workflow Shadow Audit Business.\n\n"
-        . "Your license key:\n\n    {$license['license_key']}\n\n"
-        . "1. Open the Workflow Shadow Audit extension and paste the key into the unlock box.\n"
-        . "2. Sign in to your Business Portal with this email and key:\n    " . site_url('portal.php') . "\n"
-        . "3. Fill in your business profile (social media, tools, goals) and sync your team's audits.\n\n"
-        . "Keep this key private — anyone with it can access your company's portal.\n\n— $brand\n"
+        "Your $brand $plan key",
+        "Thanks for purchasing the $plan.\n\n"
+        . "Your team key:\n\n    {$license['license_key']}\n\n"
+        . "It works for up to {$license['seats']} people until $until.\n\n"
+        . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a Business key?\" and pastes this key.\n"
+        . "2. Everyone works normally for a few days, then clicks \"Send to my Business Portal\".\n"
+        . "3. Sign in to your portal with this email and key, fill in your business profile, and get your report:\n    "
+        . site_url('portal.php') . "\n\n"
+        . "Keep this key private — anyone with it can see your company's portal.\n\n— $brand\n"
     );
     send_mail(
         (string) cfg('owner_email'),
-        'New Business customer: ' . ($license['company'] ?: $license['email']),
-        "New Workflow Shadow Audit Business license.\n\n"
-        . "Company: {$license['company']}\nEmail: {$license['email']}\nCreated: {$license['created_at']}\n\n"
-        . 'Admin: ' . site_url('admin.php') . "\n"
+        "New $plan: " . ($license['company'] ?: $license['email']),
+        "New purchase.\n\nPlan: $plan ({$license['seats']} people)\nCompany: {$license['company']}\n"
+        . "Email: {$license['email']}\nAccess until: $until\n\nAdmin: " . site_url('admin.php?view=' . (int) $license['id']) . "\n"
     );
 }
 
-/** Keep license status in sync with the Stripe subscription. */
+/** Keep Results Tracking in sync with its Stripe subscription. */
 function sync_subscription_status(array $subscription): void
 {
     if (empty($subscription['id'])) {
         return;
     }
     $active = in_array($subscription['status'] ?? '', ['active', 'trialing', 'past_due'], true);
-    db()->prepare('UPDATE licenses SET status = ?, updated_at = ? WHERE stripe_subscription_id = ?')
-        ->execute([$active ? 'active' : 'inactive', now_iso(), $subscription['id']]);
+    db()->prepare('UPDATE licenses SET monitor_status = ?, updated_at = ? WHERE monitor_subscription_id = ?')
+        ->execute([$active ? 'active' : 'canceled', now_iso(), $subscription['id']]);
+}
+
+/* ------------------------------------------------------------------ */
+/* Seats (one entry per teammate's browser)                            */
+/* ------------------------------------------------------------------ */
+
+function valid_device_id($id): bool
+{
+    return is_string($id) && (bool) preg_match('/^[A-Za-z0-9-]{8,64}$/', $id);
+}
+
+function seats_used(int $licenseId): int
+{
+    $stmt = db()->prepare('SELECT COUNT(*) FROM devices WHERE license_id = ?');
+    $stmt->execute([$licenseId]);
+    return (int) $stmt->fetchColumn();
+}
+
+/**
+ * Registers this browser against the license (or refreshes it).
+ * Returns null when OK, or a plain-language reason when the seats are full.
+ */
+function claim_seat(array $license, string $deviceId, string $roleTag = ''): ?string
+{
+    $pdo  = db();
+    $now  = now_iso();
+    $role = mb_substr($roleTag, 0, 80);
+    $find = $pdo->prepare('SELECT id FROM devices WHERE license_id = ? AND device_id = ?');
+    $find->execute([(int) $license['id'], $deviceId]);
+    if ($find->fetchColumn()) {
+        $sql = $role !== ''
+            ? 'UPDATE devices SET last_seen = ?, role_tag = ? WHERE license_id = ? AND device_id = ?'
+            : 'UPDATE devices SET last_seen = ? WHERE license_id = ? AND device_id = ?';
+        $pdo->prepare($sql)->execute($role !== ''
+            ? [$now, $role, (int) $license['id'], $deviceId]
+            : [$now, (int) $license['id'], $deviceId]);
+        return null;
+    }
+    if (seats_used((int) $license['id']) >= (int) $license['seats']) {
+        return "All {$license['seats']} seats on this key are in use. Ask your account owner to upgrade or free a seat.";
+    }
+    try {
+        $pdo->prepare('INSERT INTO devices (license_id, device_id, role_tag, first_seen, last_seen) VALUES (?, ?, ?, ?, ?)')
+            ->execute([(int) $license['id'], $deviceId, $role, $now, $now]);
+    } catch (PDOException $e) {
+        // Same browser registering twice at once — already counted.
+    }
+    return null;
+}
+
+function list_devices(int $licenseId): array
+{
+    $stmt = db()->prepare('SELECT * FROM devices WHERE license_id = ? ORDER BY first_seen');
+    $stmt->execute([$licenseId]);
+    return $stmt->fetchAll();
 }
 
 /* ------------------------------------------------------------------ */
@@ -689,42 +867,39 @@ function build_business_prompt(array $license, array $profile, array $aggregate)
     $telemetry = json_encode($aggregate, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
     return <<<PROMPT
-You are a senior Operational AI Architect preparing a client-facing AI Operations Gap Analysis for {$company}.
+You are an AI operations consultant writing a report for the owner of {$company}. The owner is busy and not
+technical: use plain words, short sentences and numbers first. Keep the whole report under about 1,200 words.
 
 ## Inputs
-1. BUSINESS PROFILE — supplied by the client (social channels, team, tools, goals).
-2. TEAM TELEMETRY — aggregated from read-only Workflow Shadow Audit browser sessions across roles. It contains
-   only domain names, active (non-idle) minutes, visit counts, repeated 4-step domain loops and rapid context
-   switches (switches < 30 seconds apart). No page content or personal data.
+1. BUSINESS PROFILE: supplied by the owner (social channels, team, tools, goals).
+2. TEAM TELEMETRY: combined from private, read-only browser audits across the team. It contains only website
+   names, active minutes, visit counts, repeated 4-site patterns and quick tab jumps (less than 30 seconds apart).
+   No page content or personal data.
 
 ## Rules
-- Use only the data provided. When a number is missing, state a labeled assumption and show the formula.
-- If the profile gives an hourly labor cost, use it; otherwise assume \$45/hour fully loaded, 21.7 workdays/month.
-- Classify each domain: Core SaaS, Communication, Marketing/Social, Internal, Search/Reference, AI Tool, Personal.
-  Exclude Personal from cost math.
-- Executive tone: numbers first, plain language, no hype.
+- Use only the data provided. When a number is missing, say it is an estimate and show the simple math.
+- Use the hourly labor cost from the profile if given; otherwise assume \$45/hour and 21.7 workdays/month.
+- Ignore personal (non-work) websites in the cost math.
+- Format in Markdown: ## headings, short bullet lists, numbered steps, and at most two small tables.
 
-## Deliver these sections
-### 1. Executive Summary (5 bullets max)
-### 2. Business & Channel Snapshot
-Assess each social/marketing channel listed: is it active, what it is likely costing in staff time (cross-reference
-telemetry), and what is missing (e.g. no Google Business Profile, no lead capture, no review engine).
-### 3. SaaS Consolidation & Shelfware Savings
-Overlapping tools, low-usage paid tools, keep/retire recommendations, estimated monthly savings range.
-### 4. Payroll Waste Math
-Time lost to context switching and repeated loops: formula, low/high case, monthly & annual cost per role and
-for the full team size given.
-### 5. AI Agent Gap Map
-A ranked table of the AI agents/automations this business should create to close the gaps. For each:
-Agent name | Department | Problem it solves (cite telemetry or profile) | Trigger | Systems connected |
-Human checkpoint | Build complexity (Low/Med/High) | Est. hours saved/month | Est. monthly value.
-Include at least: one marketing/social-media agent, one lead-response/sales agent, one operations/admin agent,
-and any others the data justifies.
-### 6. 30-Day AI Infrastructure Roadmap
-Week 1–4: quick wins, tool retirements, agents to build first, integrations (Make.com / n8n / native APIs),
-owners and success metrics to re-measure with the next audit.
-### 7. Assumptions & Data Needed
-What extra data would sharpen the estimates.
+## Write these sections
+## 1. The short version
+3–5 bullets: the biggest bottleneck, what it costs per month, and the first fix.
+## 2. Your bottlenecks
+The top 3 repetitive tasks, in plain words, with the part of the business each one slows down (sales,
+marketing, operations, finance, customer service) and the evidence from the data.
+## 3. The AI agents you need
+A table: Agent | What it does | Tools it connects | Hours saved per month (estimate) | Build effort (Low/Med/High).
+Rank by value. Include a social media agent if the profile lists social channels.
+## 4. How to fix the #1 bottleneck
+A simple step-by-step process (5–7 steps) showing exactly how the work will flow once the agent is in place,
+including where a person approves things.
+## 5. What it is costing you now
+Hours and dollars per month for the team size given, with the math.
+## 6. Software you may not need
+Overlapping or barely used tools and the likely monthly savings (estimates).
+## 7. Your next 30 days
+Week 1 to Week 4, one or two actions each.
 
 ## BUSINESS PROFILE
 {$profileText}
@@ -734,6 +909,209 @@ What extra data would sharpen the estimates.
 {$telemetry}
 ```
 PROMPT;
+}
+
+/* ------------------------------------------------------------------ */
+/* Reports (instant AI draft + final plan from your team)              */
+/* ------------------------------------------------------------------ */
+
+function latest_report(int $licenseId, string $kind): ?array
+{
+    $stmt = db()->prepare('SELECT * FROM reports WHERE license_id = ? AND kind = ? ORDER BY id DESC LIMIT 1');
+    $stmt->execute([$licenseId, $kind]);
+    return $stmt->fetch() ?: null;
+}
+
+function save_report(int $licenseId, string $kind, string $content, string $model = ''): int
+{
+    db()->prepare('INSERT INTO reports (license_id, kind, content, model, created_at) VALUES (?, ?, ?, ?, ?)')
+        ->execute([$licenseId, $kind, $content, $model, now_iso()]);
+    return (int) db()->lastInsertId();
+}
+
+function reports_today(int $licenseId): int
+{
+    $stmt = db()->prepare("SELECT COUNT(*) FROM reports WHERE license_id = ? AND kind = 'ai' AND created_at > ?");
+    $stmt->execute([$licenseId, gmdate('Y-m-d\TH:i:s\Z', time() - 86400)]);
+    return (int) $stmt->fetchColumn();
+}
+
+function ai_reports_enabled(): bool
+{
+    $key = (string) cfg('anthropic_api_key');
+    return $key !== '' && !str_contains($key, 'REPLACE');
+}
+
+/**
+ * Writes the instant report with Claude (official Anthropic PHP SDK, in vendor/).
+ * Streams the response so long reports don't hit HTTP timeouts.
+ *
+ * @return array{text: string, model: string}
+ */
+function generate_ai_report(string $prompt): array
+{
+    require_once dirname(__DIR__) . '/vendor/autoload.php';
+
+    $client = new \Anthropic\Client(
+        apiKey: (string) cfg('anthropic_api_key'),
+        requestOptions: ['timeout' => 280],
+    );
+
+    $stream = $client->beta->messages->createStream(
+        maxTokens: 16000,
+        messages: [['role' => 'user', 'content' => $prompt]],
+        model: (string) cfg('anthropic_model'),
+        outputConfig: ['effort' => (string) cfg('anthropic_effort')],
+        // If the model declines for policy reasons, let the API retry on its default fallback model.
+        fallbacks: 'default',
+        betas: ['server-side-fallback-2026-07-01'],
+    );
+
+    $accumulator = \Anthropic\Lib\Streaming\MessageAccumulator::forBetaMessages();
+    foreach ($stream as $event) {
+        $accumulator->accumulate($event);
+    }
+    $message = $accumulator->message();
+
+    if ($message->stopReason === 'refusal') {
+        throw new RuntimeException('The AI declined to write this report.');
+    }
+
+    $text = '';
+    foreach ($message->content as $block) {
+        if ($block->type === 'text') {
+            $text .= $block->text;
+        }
+    }
+    if (trim($text) === '') {
+        throw new RuntimeException('The AI returned an empty report.');
+    }
+    if ($message->stopReason === 'max_tokens') {
+        $text .= "\n\n_(Report was cut short. Generate it again for the full version.)_";
+    }
+    return ['text' => $text, 'model' => (string) $message->model];
+}
+
+/* ------------------------------------------------------------------ */
+/* Minimal, safe Markdown renderer (everything is escaped first)       */
+/* ------------------------------------------------------------------ */
+
+function md_inline(string $text): string
+{
+    $html = h($text);
+    $html = preg_replace('/\*\*(.+?)\*\*/s', '<strong>$1</strong>', $html);
+    $html = preg_replace('/(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])/s', '<em>$1</em>', $html);
+    $html = preg_replace('/(?<!\w)_(?!\s)(.+?)(?<!\s)_(?!\w)/s', '<em>$1</em>', $html);
+    $html = preg_replace('/`([^`]+)`/', '<code>$1</code>', $html);
+    return (string) $html;
+}
+
+function render_markdown(string $md): string
+{
+    $lines = preg_split('/\r\n|\r|\n/', $md);
+    $out   = '';
+    $list  = null;   // 'ul' | 'ol'
+    $para  = [];
+    $table = [];
+
+    $flushPara = function () use (&$para, &$out) {
+        if ($para) {
+            $out .= '<p>' . md_inline(implode(' ', $para)) . '</p>';
+            $para = [];
+        }
+    };
+    $closeList = function () use (&$list, &$out) {
+        if ($list) {
+            $out .= "</$list>";
+            $list = null;
+        }
+    };
+    $flushTable = function () use (&$table, &$out) {
+        if (!$table) {
+            return;
+        }
+        $rows = array_values(array_filter($table, fn($r) => !preg_match('/^\s*\|?\s*:?-{2,}/', $r)));
+        $html = '<div class="table-wrap"><table>';
+        foreach ($rows as $i => $row) {
+            $cells = array_map('trim', explode('|', trim(trim($row), '|')));
+            $tag = $i === 0 ? 'th' : 'td';
+            $html .= '<tr>' . implode('', array_map(fn($c) => "<$tag>" . md_inline($c) . "</$tag>", $cells)) . '</tr>';
+        }
+        $out .= $html . '</table></div>';
+        $table = [];
+    };
+
+    foreach ($lines as $line) {
+        $trim = trim($line);
+        if (str_starts_with($trim, '|')) {
+            $flushPara();
+            $closeList();
+            $table[] = $trim;
+            continue;
+        }
+        $flushTable();
+
+        if ($trim === '' || preg_match('/^(-{3,}|\*{3,})$/', $trim)) {
+            $flushPara();
+            $closeList();
+        } elseif (preg_match('/^(#{1,6})\s+(.*)$/', $trim, $m)) {
+            $flushPara();
+            $closeList();
+            $level = min(4, max(2, strlen($m[1]) + 1));
+            $out .= "<h$level>" . md_inline($m[2]) . "</h$level>";
+        } elseif (preg_match('/^[-*+]\s+(.*)$/', $trim, $m)) {
+            $flushPara();
+            if ($list !== 'ul') {
+                $closeList();
+                $out .= '<ul>';
+                $list = 'ul';
+            }
+            $out .= '<li>' . md_inline($m[1]) . '</li>';
+        } elseif (preg_match('/^\d+[.)]\s+(.*)$/', $trim, $m)) {
+            $flushPara();
+            if ($list !== 'ol') {
+                $closeList();
+                $out .= '<ol>';
+                $list = 'ol';
+            }
+            $out .= '<li>' . md_inline($m[1]) . '</li>';
+        } else {
+            $closeList();
+            $para[] = $trim;
+        }
+    }
+    $flushTable();
+    $flushPara();
+    $closeList();
+    return '<div class="report">' . $out . '</div>';
+}
+
+/* ------------------------------------------------------------------ */
+/* Results Tracking: month-by-month progress                           */
+/* ------------------------------------------------------------------ */
+
+function progress_by_month(array $audits): array
+{
+    $months = [];
+    foreach ($audits as $a) {
+        $month = substr((string) $a['created_at'], 0, 7);
+        $d     = $a['data'];
+        $months[$month] ??= ['month' => $month, 'minutes' => 0.0, 'switches' => 0, 'repeats' => 0, 'audits' => 0];
+        $months[$month]['audits']++;
+        $months[$month]['minutes']  += (float) ($d['auditMetadata']['totalActiveMinutes'] ?? 0);
+        $months[$month]['switches'] += (int) ($d['auditMetadata']['rapidContextSwitches'] ?? 0);
+        foreach ($d['repeatedWorkflowLoops'] ?? [] as $l) {
+            $months[$month]['repeats'] += (int) $l['repeatCount'];
+        }
+    }
+    ksort($months);
+    foreach ($months as &$m) {
+        $hours = $m['minutes'] / 60;
+        $m['hours']             = round($hours, 1);
+        $m['repeats_per_hour']  = $hours > 0 ? round($m['repeats'] / $hours, 1) : 0.0;
+        $m['switches_per_hour'] = $hours > 0 ? round($m['switches'] / $hours, 1) : 0.0;
+    }
+    return array_values($months);
 }
 
 /* ------------------------------------------------------------------ */

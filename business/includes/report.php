@@ -9,8 +9,9 @@ function fmt_hours(float $minutes): string
     return number_format($minutes / 60, 1);
 }
 
-function render_profile_form(array $profile): void
+function render_profile_form(array $profile, bool $editable = true): void
 {
+    $dis = $editable ? '' : ' disabled';
     $fields = profile_fields();
     $groups = [
         'Company'               => ['company', 'website', 'industry', 'team_size', 'software_budget', 'hourly_cost'],
@@ -25,15 +26,15 @@ function render_profile_form(array $profile): void
             $val = $profile[$key] ?? '';
             if ($type === 'textarea') {
                 echo '<label style="grid-column:1/-1">' . h($label)
-                    . '<textarea name="' . h($key) . '" maxlength="4000" placeholder="' . h($ph) . '">' . h($val) . '</textarea></label>';
+                    . '<textarea name="' . h($key) . '" maxlength="4000" placeholder="' . h($ph) . '"' . $dis . '>' . h($val) . '</textarea></label>';
             } else {
                 echo '<label>' . h($label) . '<input type="text" name="' . h($key)
-                    . '" maxlength="300" value="' . h($val) . '" placeholder="' . h($ph) . '"></label>';
+                    . '" maxlength="300" value="' . h($val) . '" placeholder="' . h($ph) . '"' . $dis . '></label>';
             }
         }
         echo '</div>';
     }
-    echo '<button class="btn primary" type="submit">Save business profile</button></form>';
+    echo $editable ? '<button class="btn primary" type="submit">Save business profile</button></form>' : '</form>';
 }
 
 function render_profile_readonly(array $profile): void
@@ -103,4 +104,35 @@ function render_prompt_box(string $prompt): void
     echo '<textarea class="prompt" id="gapPrompt" readonly>' . h($prompt) . '</textarea>'
         . '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-copy="gapPrompt">Copy AI Gap Analysis Prompt</button>'
         . '<span class="muted small">Paste into Claude or ChatGPT to generate the client report and agent plan.</span></div>';
+}
+
+function render_progress(array $months): void
+{
+    if (count($months) < 1) {
+        return;
+    }
+    echo '<h3>Month by month</h3><div class="table-wrap"><table><tr><th>Month</th><th>Audits</th><th>Hours tracked</th>'
+        . '<th>Repeated tasks / hour</th><th>Quick tab jumps / hour</th></tr>';
+    foreach ($months as $m) {
+        echo '<tr><td>' . h(date('M Y', strtotime($m['month'] . '-01'))) . '</td><td>' . (int) $m['audits'] . '</td><td>'
+            . h((string) $m['hours']) . '</td><td>' . h((string) $m['repeats_per_hour']) . '</td><td>'
+            . h((string) $m['switches_per_hour']) . '</td></tr>';
+    }
+    echo '</table></div>';
+    if (count($months) >= 2) {
+        $first = $months[0];
+        $last  = $months[count($months) - 1];
+        $change = function (float $from, float $to): string {
+            if ($from <= 0) {
+                return '—';
+            }
+            $pct = round((($to - $from) / $from) * 100);
+            return ($pct <= 0 ? '↓ ' . abs($pct) : '↑ ' . $pct) . '%';
+        };
+        echo '<p class="muted small">Since ' . h(date('M Y', strtotime($first['month'] . '-01'))) . ': repeated tasks per hour '
+            . h($change((float) $first['repeats_per_hour'], (float) $last['repeats_per_hour'])) . ', quick tab jumps per hour '
+            . h($change((float) $first['switches_per_hour'], (float) $last['switches_per_hour'])) . '. Lower is better.</p>';
+    } else {
+        echo '<p class="muted small">Send in audits next month to compare.</p>';
+    }
 }

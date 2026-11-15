@@ -199,6 +199,29 @@ async function saveProfile() {
   await chrome.storage.local.set({ profile });
 }
 
+/** Random ID for this browser, so a team key counts one seat per person. */
+async function getDeviceId() {
+  if (!profile.deviceId) {
+    profile.deviceId = crypto.randomUUID();
+    await saveProfile();
+  }
+  return profile.deviceId;
+}
+
+function accessFromResult(key, result, previous) {
+  return Object.assign({}, previous || {}, {
+    mode: 'key',
+    tier: 'business',
+    value: key,
+    plan: result.plan || 'Business',
+    company: result.company || '',
+    accessUntil: result.accessUntil || null,
+    monitoring: !!result.monitoring,
+    portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
+    validatedAt: new Date().toISOString()
+  });
+}
+
 function handleRoleInput(e) {
   const value = e.target.value;
   el.roleInputs.forEach((input) => {
@@ -251,9 +274,10 @@ async function handleKey() {
   }
   el.keyBtn.disabled = true;
   setMsg(el.keyMsg, 'Checking…', '');
+  await saveProfile();
   let result;
   try {
-    result = await postJson('/api/validate.php', { key });
+    result = await postJson('/api/validate.php', { key, deviceId: await getDeviceId(), roleTag: profile.roleTag || '' });
   } catch (e) {
     el.keyBtn.disabled = false;
     setMsg(el.keyMsg, "Couldn't connect. Check your internet and try again.", 'error');
@@ -264,21 +288,12 @@ async function handleKey() {
     setMsg(el.keyMsg, result.reason || result.error || "That key didn't work.", 'error');
     return;
   }
-  const now = new Date().toISOString();
-  profile.access = {
-    mode: 'key',
-    tier: 'business',
-    value: key,
-    company: result.company || '',
-    portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
-    unlockedAt: now,
-    validatedAt: now
-  };
+  profile.access = accessFromResult(key, result, { unlockedAt: new Date().toISOString() });
   await saveProfile();
   el.keyInput.value = '';
   setMsg(el.keyMsg, '', '');
   el.keyBox.classList.add('hidden');
-  showToast('Business unlocked. No time limit.', 'ok');
+  showToast('Team key connected.', 'ok');
   await refresh();
 }
 
@@ -297,22 +312,17 @@ async function revalidateBusinessKey(force) {
   if (!force && a.tier === 'business' && Date.now() - last < REVALIDATE_MS) return;
 
   try {
-    const result = await postJson('/api/validate.php', { key: a.value });
+    const result = await postJson('/api/validate.php', { key: a.value, deviceId: await getDeviceId(), roleTag: profile.roleTag || '' });
     if (result.ok && result.valid) {
-      profile.access = Object.assign({}, a, {
-        tier: 'business',
-        company: result.company || a.company || '',
-        portalUrl: result.portalUrl || a.portalUrl,
-        validatedAt: new Date().toISOString()
-      });
+      profile.access = accessFromResult(a.value, result, a);
     } else if (result.ok && !result.valid) {
       profile.access = null;
-      showToast(result.reason || 'Your Business key is no longer active.', 'error');
+      showToast(result.reason || 'Your team key is no longer active.', 'error');
     }
   } catch (e) {
     if (Date.now() - last > OFFLINE_GRACE_MS) {
       profile.access = null;
-      showToast('Connect to the internet to re-check your Business key.', 'error');
+      showToast('Connect to the internet to re-check your team key.', 'error');
     }
   }
   await saveProfile();
@@ -506,12 +516,12 @@ async function handleSync() {
   el.syncBtn.disabled = true;
   el.syncBtn.textContent = 'Sending…';
   try {
-    const result = await postJson('/api/sync.php', { key: profile.access.value, payload });
+    const result = await postJson('/api/sync.php', { key: profile.access.value, deviceId: await getDeviceId(), payload });
     if (result.ok) {
       showToast('Sent to your Business Portal.', 'ok');
     } else {
       showToast(result.error || "Couldn't send. Try again.", 'error');
-      if (/not active/i.test(result.error || '')) await revalidateBusinessKey(true);
+      if (/not active|seats/i.test(result.error || '')) await revalidateBusinessKey(true);
     }
   } catch (e) {
     showToast("Couldn't connect. Try again shortly.", 'error');
@@ -784,7 +794,11 @@ function render() {
   show(el.bizRow, business);
   if (business) {
     el.keyBox.classList.add('hidden');
-    el.bizText.textContent = 'Business' + (profile.access.company ? ' · ' + profile.access.company : '');
+    const a = profile.access;
+    const until = a.accessUntil && !a.monitoring
+      ? ' · until ' + new Date(a.accessUntil).toLocaleDateString([], { month: 'short', day: 'numeric' })
+      : '';
+    el.bizText.textContent = (a.plan || 'Business') + (a.company ? ' · ' + a.company : '') + until;
   }
 }
 
