@@ -2,3 +2,8 @@
 videos/founder-message.mp4
 .DS_Store
 *-backup-*.html
+
+# Business server secrets
+business/includes/config.php
+swa-config.php
+*.sqlite

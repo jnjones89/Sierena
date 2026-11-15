@@ -13,6 +13,11 @@
 
 'use strict';
 
+// Where your Business server (the /business folder) is hosted. No trailing slash.
+const BUSINESS_BASE_URL = 'https://sirenaflow.com/business';
+const REVALIDATE_MS = 12 * 60 * 60 * 1000;        // re-check a Business key twice a day
+const OFFLINE_GRACE_MS = 7 * 24 * 60 * 60 * 1000;  // keep working offline for up to 7 days
+
 const REFRESH_MS = 5000;
 const MIN_LOOP_REPEATS = 2;      // a loop must occur at least twice to count as "repeated"
 const MAX_EXPORT_LOOPS = 25;
@@ -50,6 +55,9 @@ const el = {
   lockNote: $('lockNote'),
   downloadBtn: $('downloadBtn'),
   copyPromptBtn: $('copyPromptBtn'),
+  syncBtn: $('syncBtn'),
+  portalBtn: $('portalBtn'),
+  upgradeBtn: $('upgradeBtn'),
   webhookDetails: $('webhookDetails'),
   webhookInput: $('webhookInput'),
   webhookBtn: $('webhookBtn'),
@@ -122,8 +130,42 @@ function localDateStamp(date) {
   return `${y}-${m}-${d}`;
 }
 
+function currentTier() {
+  const a = profile.access;
+  if (!a || !a.mode || !a.value) return 'free';
+  if (a.mode === 'key' && a.tier === 'business') return 'business';
+  if (a.mode === 'email') return 'lite';
+  return 'free';
+}
+
+/** Lite (work email) or Business (paid key): export + AI prompt. */
 function isUnlocked() {
-  return !!(profile.access && profile.access.mode && profile.access.value);
+  return currentTier() !== 'free';
+}
+
+/** Business only: portal sync, webhook. */
+function isBusiness() {
+  return currentTier() === 'business';
+}
+
+async function postJson(path, body) {
+  const res = await fetch(BUSINESS_BASE_URL + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  let data = null;
+  try {
+    data = await res.json();
+  } catch (e) {
+    data = null;
+  }
+  if (!data) throw new Error('Unexpected server response (HTTP ' + res.status + ')');
+  return data;
+}
+
+function openTab(url) {
+  chrome.tabs.create({ url });
 }
 
 /* ------------------------------------------------------------------ */
@@ -166,30 +208,90 @@ async function handleUnlock() {
 
   if (/^audit-/i.test(raw)) {
     if (!validateAccessKey(raw)) {
-      setGateMsg('That access key looks incomplete. Format: AUDIT-XXXX', 'error');
+      setGateMsg('That access key looks incomplete. Format: AUDIT-XXXX-XXXX-XXXX-XXXX', 'error');
       return;
     }
-    profile.access = { mode: 'key', value: raw.toUpperCase(), unlockedAt: new Date().toISOString() };
+    const key = raw.toUpperCase();
+    el.gateBtn.disabled = true;
+    setGateMsg('Checking your Business key…', '');
+    let result;
+    try {
+      result = await postJson('/api/validate.php', { key });
+    } catch (e) {
+      el.gateBtn.disabled = false;
+      setGateMsg('Could not reach the license server. Check your connection and try again.', 'error');
+      return;
+    }
+    el.gateBtn.disabled = false;
+    if (!result.ok || !result.valid) {
+      setGateMsg(result.reason || result.error || 'That key is not valid.', 'error');
+      return;
+    }
+    const now = new Date().toISOString();
+    profile.access = {
+      mode: 'key',
+      tier: 'business',
+      value: key,
+      company: result.company || '',
+      portalUrl: result.portalUrl || BUSINESS_BASE_URL + '/portal.php',
+      unlockedAt: now,
+      validatedAt: now
+    };
   } else {
     const check = validateWorkEmail(raw);
     if (!check.ok) {
       setGateMsg(check.reason, 'error');
       return;
     }
-    profile.access = { mode: 'email', value: raw.toLowerCase(), unlockedAt: new Date().toISOString() };
+    const email = raw.toLowerCase();
+    profile.access = { mode: 'email', tier: 'lite', value: email, unlockedAt: new Date().toISOString() };
+    // Record the lead (fire-and-forget; unlocking never depends on the server).
+    postJson('/api/lead.php', { email, roleTag: profile.roleTag || '' }).catch(() => {});
   }
 
   await saveProfile();
   el.gateInput.value = '';
   renderGate();
-  showToast('Full access unlocked.', 'ok');
+  showToast(isBusiness() ? 'Business plan unlocked.' : 'Export + AI prompt unlocked.', 'ok');
+}
+
+/** Re-check a Business key periodically so canceled subscriptions lose access. */
+async function revalidateBusinessKey() {
+  const a = profile.access;
+  if (!a || a.mode !== 'key') return;
+
+  const last = a.validatedAt ? Date.parse(a.validatedAt) : 0;
+  if (a.tier === 'business' && Date.now() - last < REVALIDATE_MS) return;
+
+  try {
+    const result = await postJson('/api/validate.php', { key: a.value });
+    if (result.ok && result.valid) {
+      profile.access = Object.assign({}, a, {
+        tier: 'business',
+        company: result.company || a.company || '',
+        portalUrl: result.portalUrl || a.portalUrl,
+        validatedAt: new Date().toISOString()
+      });
+    } else if (result.ok && !result.valid) {
+      profile.access = null;
+      setGateMsg(result.reason || 'Your Business key is no longer active.', 'error');
+    }
+  } catch (e) {
+    // Offline: allow a grace period, then require a fresh check.
+    if (Date.now() - last > OFFLINE_GRACE_MS) {
+      profile.access = null;
+      setGateMsg('Please reconnect to the internet to re-verify your Business key.', 'error');
+    }
+  }
+  await saveProfile();
+  renderGate();
 }
 
 async function handleLock() {
   profile.access = null;
   await saveProfile();
   renderGate();
-  setGateMsg('Live preview is free. Export, AI prompt and webhook unlock instantly.', '');
+  setGateMsg('Live preview is free. Work email unlocks export + AI prompt. Business key unlocks team sync & webhook.', '');
 }
 
 function setGateMsg(text, kind) {
@@ -208,20 +310,30 @@ function maskAccess(access) {
 
 function renderGate() {
   const unlocked = isUnlocked();
+  const business = isBusiness();
   el.gateLocked.classList.toggle('hidden', unlocked);
   el.gateUnlocked.classList.toggle('hidden', !unlocked);
-  if (unlocked) {
+  if (business) {
     el.unlockedText.textContent =
-      (profile.access.mode === 'key' ? 'Client key ' : 'Unlocked for ') + maskAccess(profile.access);
+      'Business' + (profile.access.company ? ' · ' + profile.access.company : '') + ' · ' + maskAccess(profile.access);
+  } else if (unlocked) {
+    el.unlockedText.textContent = 'Lite · ' + maskAccess(profile.access);
   }
 
   el.lockNote.classList.toggle('hidden', unlocked);
   el.downloadBtn.disabled = !unlocked;
   el.copyPromptBtn.disabled = !unlocked;
-  el.webhookBtn.disabled = !unlocked;
-  el.webhookInput.disabled = !unlocked;
-  el.webhookDetails.classList.toggle('disabled', !unlocked);
-  if (!unlocked) el.webhookDetails.open = false;
+
+  el.syncBtn.disabled = !business;
+  el.syncBtn.classList.toggle('hidden', !business);
+  el.portalBtn.classList.toggle('hidden', !business);
+  el.upgradeBtn.classList.toggle('hidden', business);
+
+  el.webhookBtn.disabled = !business;
+  el.webhookInput.disabled = !business;
+  el.webhookDetails.classList.toggle('disabled', !business);
+  el.webhookDetails.querySelector('summary').textContent = business ? 'Send to Webhook' : 'Send to Webhook (Business)';
+  if (!business) el.webhookDetails.open = false;
 }
 
 /* ------------------------------------------------------------------ */
@@ -434,8 +546,37 @@ function validateWebhookUrl(value) {
   return { ok: true, url: url.toString() };
 }
 
+async function handleSync() {
+  if (!isBusiness()) return;
+  await refreshForExport();
+  const payload = buildPayload();
+  if (payload.softwareUsage.length === 0) {
+    showToast('Nothing to sync yet — shadow some work first.', 'error');
+    return;
+  }
+  el.syncBtn.disabled = true;
+  el.syncBtn.textContent = 'Syncing…';
+  try {
+    const result = await postJson('/api/sync.php', { key: profile.access.value, payload });
+    if (result.ok) {
+      showToast('Synced to your Business Portal.', 'ok');
+    } else {
+      showToast('Sync failed: ' + (result.error || 'unknown error'), 'error');
+      if (/not active/i.test(result.error || '')) {
+        profile.access.validatedAt = null;
+        await revalidateBusinessKey();
+      }
+    }
+  } catch (e) {
+    showToast('Could not reach the Business server. Try again shortly.', 'error');
+  } finally {
+    el.syncBtn.textContent = 'Sync to Business Portal';
+    el.syncBtn.disabled = !isBusiness();
+  }
+}
+
 async function handleWebhook() {
-  if (!isUnlocked()) return;
+  if (!isBusiness()) return;
   const check = validateWebhookUrl(el.webhookInput.value.trim());
   if (!check.ok) {
     showToast(check.reason, 'error');
@@ -483,7 +624,7 @@ async function handleWebhook() {
   } catch (e) {
     showToast('Webhook failed: ' + (e && e.message ? e.message : 'network error'), 'error');
   } finally {
-    el.webhookBtn.disabled = !isUnlocked();
+    el.webhookBtn.disabled = !isBusiness();
     el.webhookBtn.textContent = 'POST JSON Payload';
   }
 }
@@ -649,12 +790,21 @@ async function init() {
   el.copyPromptBtn.addEventListener('click', handleCopyPrompt);
   el.webhookBtn.addEventListener('click', handleWebhook);
   el.webhookDetails.addEventListener('toggle', () => {
-    if (!isUnlocked() && el.webhookDetails.open) el.webhookDetails.open = false;
+    if (!isBusiness() && el.webhookDetails.open) el.webhookDetails.open = false;
+  });
+  el.syncBtn.addEventListener('click', handleSync);
+  el.portalBtn.addEventListener('click', () => {
+    openTab((profile.access && profile.access.portalUrl) || BUSINESS_BASE_URL + '/portal.php');
+  });
+  el.upgradeBtn.addEventListener('click', () => {
+    const email = profile.access && profile.access.mode === 'email' ? profile.access.value : '';
+    openTab(BUSINESS_BASE_URL + '/' + (email ? '?email=' + encodeURIComponent(email) : ''));
   });
   el.resetBtn.addEventListener('click', handleReset);
 
   await refresh();
   refreshTimer = setInterval(refresh, REFRESH_MS);
+  revalidateBusinessKey();
 }
 
 window.addEventListener('pagehide', () => {

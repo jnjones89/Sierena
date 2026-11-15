@@ -206,6 +206,7 @@
     button.primary:hover:not(:disabled) { filter: brightness(1.08); }
     button.danger { color: var(--red); background: transparent; border-color: rgba(239,68,68,.35); }
     button.danger.confirming { background: var(--red-bg); border-color: var(--red); }
+    button.upgrade { color: #c9bcff; border-color: rgba(124,92,255,.55); background: rgba(124,92,255,.10); font-size: 12px; }
     button.small { width: auto; padding: 8px 12px; flex: 0 0 auto; }
     button.link {
       width: auto; padding: 0; border: none; background: none;
@@ -304,7 +305,7 @@
             <button id="gateBtn" class="small primary" type="button">Unlock</button>
           </div>
         </label>
-        <div id="gateMsg" class="gate-msg">Live preview is free. Export, AI prompt and webhook unlock instantly.</div>
+        <div id="gateMsg" class="gate-msg">Live preview is free. Work email unlocks export + AI prompt. Business key unlocks team sync &amp; webhook.</div>
       </div>
 
       <div id="gateUnlocked" class="unlocked-banner hidden">
@@ -353,11 +354,12 @@
     <section class="card" aria-labelledby="exportTitle">
       <h2 class="card-title" id="exportTitle">Export &amp; AI Analysis</h2>
 
-      <div id="lockNote" class="lock-note">🔒 Unlock above to enable export, AI prompt and webhook.</div>
+      <div id="lockNote" class="lock-note">🔒 Unlock above to enable export and the AI prompt.</div>
 
       <div class="actions">
         <button id="downloadBtn" class="primary" type="button" disabled>Download AI Audit JSON</button>
         <button id="copyPromptBtn" type="button" disabled>Copy AI Analysis Prompt + Data</button>
+        <button id="syncBtn" type="button" disabled title="Business plan">Sync to Business Portal</button>
 
         <details class="webhook disabled" id="webhookDetails">
           <summary>Send to Webhook</summary>
@@ -367,6 +369,9 @@
           </div>
         </details>
 
+        <button id="portalBtn" type="button" class="hidden">Open Business Portal ↗</button>
+        <button id="upgradeBtn" type="button" class="upgrade">Upgrade to Business — team sync, portal &amp; AI agent plan ↗</button>
+
         <button id="resetBtn" class="danger" type="button">Reset Session</button>
       </div>
 
@@ -375,7 +380,7 @@
 
     <footer>
       Records only domain names, active time and tab-switch patterns.<br>
-      No page content, paths, queries, keystrokes or passwords. Data stays on this device.
+      No page content, paths, queries, keystrokes or passwords. Data stays on this device unless you export, sync or send it.
     </footer>
   </div>
 
