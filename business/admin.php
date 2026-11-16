@@ -178,7 +178,7 @@ if (isset($_GET['view'])) {
     <?php
       $cProfile = load_profile($lid);
       $cStatus  = chain_status($cProfile['industry'] ?: 'other', load_chain($lid), chain_evidence($aggregate), load_tests($lid));
-      $sStatus  = stations_status(load_stations($lid), station_evidence($aggregate), load_tests($lid));
+      $sStatus  = stations_status(load_stations($lid), station_evidence($aggregate), load_tests($lid), $cStatus['rows']);
       $cTests   = load_tests($lid);
     ?>
     <section class="card">

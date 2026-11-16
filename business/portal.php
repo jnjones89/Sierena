@@ -20,7 +20,6 @@ const PORTAL_PAGES = [
     'tools'     => 'Your tools',
     'questions' => 'Questions',
     'journey'   => 'Client journey',
-    'stations'  => '7 stations',
     'team'      => 'Your team',
     'report'    => 'Report',
     'numbers'   => 'Numbers',
@@ -147,19 +146,26 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         $sid = (string) ($_POST['station'] ?? '');
         $ids = array_keys(stations());
         if (!in_array($sid, $ids, true)) {
-            go('stations');
+            go('journey');
         }
         $all = load_stations($lid);
         $all[$sid] = clean_station_input($sid, $_POST);
-        write_profile_data($lid, array_merge(profile_data($lid), ['stations' => $all]));
+        $chain = load_chain($lid);
+        foreach (chain_links(load_profile($lid)['industry'] ?: 'other') as $linkId => $link) {
+            $v = (string) ($_POST['link_' . $linkId] ?? '');
+            if ($link['station'] === $sid && isset(CHAIN_ANSWERS[$v])) {
+                $chain[$linkId] = $v;
+            }
+        }
+        write_profile_data($lid, array_merge(profile_data($lid), ['stations' => $all, 'chain' => $chain]));
         $next = $ids[array_search($sid, $ids, true) + 1] ?? null;
         if (($_POST['go'] ?? '') === 'stay') {
-            go('stations', 'Saved.', 'ok', ['s' => $sid]);
+            go('journey', 'Saved.', 'ok', ['s' => $sid]);
         }
         if ($next) {
-            go('stations', '', 'ok', ['s' => $next]);
+            go('journey', '', 'ok', ['s' => $next]);
         }
-        go('stations', $next ? 'Saved.' : "That's all 7 stations. Thank you!");
+        go('journey', $next ? 'Saved.' : "That's all 7 stations. Thank you!");
     }
 
     if ($action === 'answer') {
@@ -333,7 +339,7 @@ $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
 $solo       = license_is_solo($license);
 $chainStatus = chain_status($industry, load_chain($lid), chain_evidence(aggregate_audits($audits)), load_tests($lid));
-$stStatus   = stations_status(load_stations($lid), station_evidence(aggregate_audits($audits)), load_tests($lid));
+$stStatus   = stations_status(load_stations($lid), station_evidence(aggregate_audits($audits)), load_tests($lid), $chainStatus['rows']);
 $coverage   = data_coverage($license, $audits, $devices);
 $finalIncluded = plan_includes_final_plan($license);
 $dis        = $active ? '' : ' disabled';
@@ -405,18 +411,11 @@ if ($page === 'home'):
             'page'  => 'questions', 'cta' => $summary['answered'] === 0 ? 'Start' : ($questionsDone ? 'Review' : 'Continue'),
         ],
         [
-            'done'  => $chainStatus['counts']['unknown'] === 0, 'title' => 'Map your client journey',
-            'text'  => $chainStatus['counts']['unknown'] === 0
-                ? $chainStatus['counts']['ok'] . ' steps automatic · ' . ($chainStatus['counts']['manual'] + $chainStatus['counts']['weak']) . ' by hand or sometimes · ' . $chainStatus['counts']['broken'] . ' broken.'
-                : 'From new lead to paid invoice: does each step trigger the next? About 3 minutes.',
-            'page'  => 'journey', 'cta' => $chainStatus['counts']['unknown'] === count($chainStatus['rows']) ? 'Start' : ($chainStatus['counts']['unknown'] === 0 ? 'Review' : 'Continue'),
-        ],
-        [
-            'done'  => $stStatus['done'] === $stStatus['total'], 'title' => 'Check your 7 stations',
+            'done'  => $stStatus['done'] === $stStatus['total'], 'title' => 'Map your client journey',
             'text'  => $stStatus['done'] === $stStatus['total']
                 ? $stStatus['counts']['ok'] . ' green · ' . $stStatus['counts']['weak'] . ' amber · ' . $stStatus['counts']['broken'] . ' red. From first lead to referral.'
-                : $stStatus['done'] . ' of ' . $stStatus['total'] . ' done. From first lead to referral: process, owner and automation at each step. About 5 minutes.',
-            'page'  => 'stations', 'cta' => $stStatus['done'] === 0 ? 'Start' : ($stStatus['done'] === $stStatus['total'] ? 'Review' : 'Continue'),
+                : $stStatus['done'] . ' of ' . $stStatus['total'] . ' stations done. From first lead to referral: each step, who owns it, and what is automated. About 8 minutes.',
+            'page'  => 'journey', 'cta' => $stStatus['done'] === 0 ? 'Start' : ($stStatus['done'] === $stStatus['total'] ? 'Review' : 'Continue'),
         ],
         [
             'done'  => $reportDone, 'title' => 'Get your report',
@@ -861,50 +860,8 @@ elseif ($page === 'report'):
   <?php endif; ?>
 
 <?php
-/* ---------------------------- Journey ---------------------------- */
-elseif ($page === 'journey'):
-    $c = $chainStatus['counts'];
-    $statusWord = ['ok' => 'Automatic', 'manual' => 'By hand', 'weak' => 'Sometimes', 'broken' => 'Broken', 'unknown' => 'Not answered'];
-?>
-  <h1>Your client journey</h1>
-  <p class="lead">From a new lead to a paid invoice: does each step trigger the next one? This is where things usually fall through the cracks.</p>
-
-  <section class="card">
-    <div class="chain" aria-label="Your client journey at a glance">
-      <?php $i = 0; foreach ($chainStatus['rows'] as $r): ?>
-        <?php if ($i++ > 0): ?><span class="arrow" aria-hidden="true">→</span><?php endif; ?>
-        <span class="link <?= h($r['status']) ?>" title="<?= h($statusWord[$r['status']]) ?>"><?= h($r['label']) ?></span>
-      <?php endforeach; ?>
-    </div>
-    <p class="muted small legend"><span class="dot ok"></span> Automatic · <span class="dot manual"></span> By hand or sometimes · <span class="dot broken"></span> Broken · <span class="dot unknown"></span> Not answered
-      <?php if ($c['unknown'] < count($chainStatus['rows'])): ?> — <b><?= (int) $c['ok'] ?></b> automatic, <b><?= (int) ($c['manual'] + $c['weak']) ?></b> by hand or sometimes, <b><?= (int) $c['broken'] ?></b> broken<?php endif; ?></p>
-  </section>
-
-  <form method="post" action="portal.php">
-    <?= csrf_field() ?><input type="hidden" name="action" value="save_chain">
-    <?php $n = 0; foreach ($chainStatus['rows'] as $id => $r): $n++; ?>
-      <section class="card link-card <?= h($r['status']) ?>">
-        <div class="link-head"><span class="link-num"><?= $n ?></span><div><b><?= h($r['label']) ?></b><div class="muted"><?= h($r['q']) ?></div></div></div>
-        <div class="choice">
-          <?php foreach (CHAIN_ANSWERS as $k => $lbl): ?>
-            <label class="pill-radio"><input type="radio" name="link_<?= h($id) ?>" value="<?= h($k) ?>"<?= $r['answer'] === $k ? ' checked' : '' ?><?= $dis ?>><span><?= h($lbl) ?></span></label>
-          <?php endforeach; ?>
-        </div>
-        <?php if ($r['evidence']): ?><p class="evidence"><b>What the audit saw:</b> <?= h($r['evidence']['text']) ?></p><?php endif; ?>
-        <?php if ($r['test']): ?>
-          <p class="tested <?= $r['test']['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($r['test']['label']) ?>):</b> <?= h(TEST_RESULTS[$r['test']['result']]) ?><?= $r['test']['detail'] !== '' ? ' · ' . h($r['test']['detail']) : '' ?></p>
-        <?php endif; ?>
-        <?php if (in_array($r['status'], ['manual', 'weak', 'broken'], true)): ?>
-          <p class="muted small"><b>Fix:</b> <?= h($r['fix']) ?> <span class="badge"><?= h($r['agent']) ?></span></p>
-        <?php endif; ?>
-      </section>
-    <?php endforeach; ?>
-    <?php if ($active): ?><button class="btn primary" type="submit">Save</button><?php endif; ?>
-  </form>
-
-<?php
 /* ---------------------------- Stations --------------------------- */
-elseif ($page === 'stations'):
+elseif ($page === 'journey' || $page === 'stations'):
     $sid = (string) ($_GET['s'] ?? '');
     $ids = array_keys(stations());
     $statusWord = ['ok' => 'Green', 'weak' => 'Needs work', 'broken' => 'Broken', 'unknown' => 'Not answered'];
@@ -914,16 +871,16 @@ elseif ($page === 'stations'):
             if (!$r['complete']) { $firstOpen = $id; break; }
         }
 ?>
-  <h1>Your 7 stations</h1>
-  <p class="lead">Every business has the same 7 stations, from the first lead to a referral. At each one we check three things:
-    is the <b>process</b> defined, who <b>owns</b> it, and is it <b>automated</b>?</p>
+  <h1>Your client journey</h1>
+  <p class="lead">From the first lead to a referral, every business has the same 7 stations. At each one we check the steps,
+    and three things: is the <b>process</b> defined, who <b>owns</b> it, and is it <b>automated</b>?</p>
   <?php if ($active): ?>
-    <p><a class="btn primary" href="<?= h(portal_url('stations', ['s' => $firstOpen])) ?>"><?= $stStatus['done'] === 0 ? 'Start with station 1' : ($stStatus['done'] === $stStatus['total'] ? 'Review your answers' : 'Continue') ?></a>
+    <p><a class="btn primary" href="<?= h(portal_url('journey', ['s' => $firstOpen])) ?>"><?= $stStatus['done'] === 0 ? 'Start with station 1' : ($stStatus['done'] === $stStatus['total'] ? 'Review your answers' : 'Continue') ?></a>
       <span class="muted small"><?= (int) $stStatus['done'] ?> of <?= (int) $stStatus['total'] ?> done</span></p>
   <?php endif; ?>
   <div class="stations">
     <?php $n = 0; foreach ($stStatus['rows'] as $id => $r): $n++; $a = $r['answers']; ?>
-      <a class="station-tile <?= h($r['status']) ?>" href="<?= h(portal_url('stations', ['s' => $id])) ?>">
+      <a class="station-tile <?= h($r['status']) ?>" href="<?= h(portal_url('journey', ['s' => $id])) ?>">
         <span class="st-num"><?= $n ?></span>
         <b><?= h($r['title']) ?></b>
         <span class="st-status"><?= h($statusWord[$r['status']]) ?><?= $r['score'] !== null ? ' · ' . (int) $r['score'] . '%' : '' ?></span>
@@ -936,6 +893,13 @@ elseif ($page === 'stations'):
       </a>
     <?php endforeach; ?>
   </div>
+  <section class="card" style="margin-top:16px">
+    <h2>Step by step</h2>
+    <div class="chain">
+      <?php $i = 0; foreach ($chainStatus['rows'] as $cr): ?><?php if ($i++ > 0): ?><span class="arrow" aria-hidden="true">→</span><?php endif; ?><span class="link <?= h($cr['status']) ?>"><?= h($cr['label']) ?></span><?php endforeach; ?>
+    </div>
+    <p class="muted small legend"><span class="dot ok"></span> Automatic · <span class="dot manual"></span> By hand or sometimes · <span class="dot broken"></span> Broken · <span class="dot unknown"></span> Not answered</p>
+  </section>
 <?php
     else:
         $r   = $stStatus['rows'][$sid];
@@ -949,7 +913,7 @@ elseif ($page === 'stations'):
             return $out . '</div>';
         };
 ?>
-  <p class="muted small" style="margin:0">Station <?= $pos + 1 ?> of <?= count($ids) ?> · <a href="<?= h(portal_url('stations')) ?>">All stations</a></p>
+  <p class="muted small" style="margin:0">Station <?= $pos + 1 ?> of <?= count($ids) ?> · <a href="<?= h(portal_url('journey')) ?>">All stations</a></p>
   <div class="progress"><div style="width:<?= (int) round(100 * $pos / count($ids)) ?>%"></div></div>
   <h1><?= h($r['title']) ?></h1>
   <p class="lead"><?= h($r['check']) ?></p>
@@ -972,6 +936,21 @@ elseif ($page === 'stations'):
       <?php endforeach; ?>
     </section>
 
+    <?php if ($r['links']): ?>
+      <section class="card">
+        <h2>Step by step</h2>
+        <p class="muted small">How does each step happen today?</p>
+        <?php foreach ($r['links'] as $linkId => $lr): ?>
+          <div class="link-row">
+            <p class="q"><?= h($lr['label']) ?> <span class="muted small" style="font-weight:400"><?= h($lr['q']) ?></span></p>
+            <?= $radio('link_' . $linkId, CHAIN_ANSWERS, (string) $lr['answer']) ?>
+            <?php if ($lr['evidence']): ?><p class="evidence"><b>What the audit saw:</b> <?= h($lr['evidence']['text']) ?></p><?php endif; ?>
+            <?php if ($lr['test']): ?><p class="tested <?= $lr['test']['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($lr['test']['label']) ?>):</b> <?= h(TEST_RESULTS[$lr['test']['result']]) ?><?= $lr['test']['detail'] !== '' ? ' · ' . h($lr['test']['detail']) : '' ?></p><?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+      </section>
+    <?php endif; ?>
+
     <section class="card">
       <h2>Three questions</h2>
       <p class="q">Process: is it defined, or improvised?</p>
@@ -983,12 +962,13 @@ elseif ($page === 'stations'):
       <?= $radio('automation', STATION_AUTOMATION, (string) ($a['automation'] ?? '')) ?>
     </section>
 
-    <?php if ($r['flags'] || $r['evidence'] || $r['tests']): ?>
+    <?php if ($r['flags'] || $r['evidence'] || $r['tests'] || in_array($r['status'], ['weak', 'broken'], true)): ?>
       <section class="card">
         <h2>What we noticed</h2>
         <?php foreach ($r['flags'] as $f): ?><p class="evidence"><?= h($f) ?></p><?php endforeach; ?>
         <?php foreach ($r['evidence'] as $e): ?><p class="evidence"><b>What the audit saw:</b> <?= h($e) ?></p><?php endforeach; ?>
-        <?php foreach ($r['tests'] as $t): ?><p class="tested <?= $t['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($t['label']) ?>):</b> <?= h(TEST_RESULTS[$t['result']]) ?><?= $t['detail'] !== '' ? ' · ' . h($t['detail']) : '' ?></p><?php endforeach; ?>
+        <?php $shownTests = array_filter(array_map(fn($lr) => $lr['test']['label'] ?? null, $r['links'])); ?>
+        <?php foreach (array_filter($r['tests'], fn($t) => !in_array($t['label'], $shownTests, true)) as $t): ?><p class="tested <?= $t['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($t['label']) ?>):</b> <?= h(TEST_RESULTS[$t['result']]) ?><?= $t['detail'] !== '' ? ' · ' . h($t['detail']) : '' ?></p><?php endforeach; ?>
         <?php if (in_array($r['status'], ['weak', 'broken'], true)): ?>
           <p class="muted small"><b>Fix:</b> <?= h($r['fix']) ?> <span class="badge"><?= h($r['agent']) ?></span></p>
         <?php endif; ?>
@@ -996,7 +976,7 @@ elseif ($page === 'stations'):
     <?php endif; ?>
 
     <div class="wizard-nav">
-      <?php if ($pos > 0): ?><a href="<?= h(portal_url('stations', ['s' => $ids[$pos - 1]])) ?>">← Back</a><?php else: ?><span></span><?php endif; ?>
+      <?php if ($pos > 0): ?><a href="<?= h(portal_url('journey', ['s' => $ids[$pos - 1]])) ?>">← Back</a><?php else: ?><span></span><?php endif; ?>
       <?php if ($active): ?>
         <span class="actions">
           <button class="btn" type="submit" name="go" value="stay">Save</button>

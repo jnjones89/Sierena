@@ -265,8 +265,12 @@ function station_flags(string $id, array $facts): array
 /**
  * Score every station. status: ok (green), weak (amber), broken (red), unknown (grey).
  */
-function stations_status(array $answers, array $evidence, array $tests): array
+function stations_status(array $answers, array $evidence, array $tests, array $chainRows = []): array
 {
+    $linksBy = [];
+    foreach ($chainRows as $lid => $lr) {
+        $linksBy[$lr['station'] ?? ''][$lid] = $lr;
+    }
     $testsBy = [];
     foreach (STATION_TESTS as $tid => $t) {
         if (!empty($tests[$tid]['result'])) {
@@ -297,6 +301,15 @@ function stations_status(array $answers, array $evidence, array $tests): array
         } else {
             $status = 'broken';
         }
+        // The journey steps inside this station count too.
+        $links = $linksBy[$id] ?? [];
+        $linkStatuses = array_column($links, 'status');
+        $answeredLinks = array_filter($linkStatuses, fn($x) => $x !== 'unknown');
+        if ($status === 'unknown' && $answeredLinks) {
+            $status = in_array('broken', $answeredLinks, true) ? 'broken' : (in_array('manual', $answeredLinks, true) || in_array('weak', $answeredLinks, true) ? 'weak' : 'ok');
+        } elseif ($status === 'ok' && array_intersect($answeredLinks, ['broken', 'weak', 'manual'])) {
+            $status = 'weak';
+        }
         if ($status === 'ok' && ($flags || !empty($evidence[$id]))) {
             $status = 'weak';
         }
@@ -306,7 +319,7 @@ function stations_status(array $answers, array $evidence, array $tests): array
         $counts[$status]++;
         $rows[$id] = $def + [
             'id' => $id, 'answers' => $a, 'score' => $score, 'status' => $status, 'flags' => $flags,
-            'evidence' => $evidence[$id] ?? [], 'tests' => $stTests,
+            'evidence' => $evidence[$id] ?? [], 'tests' => $stTests, 'links' => $links,
             'complete' => ($a['process'] ?? '') !== '' && ($a['owner'] ?? '') !== '' && ($a['automation'] ?? '') !== '',
         ];
     }

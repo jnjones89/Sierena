@@ -1159,8 +1159,9 @@ function money(float $n): string
 function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = [], array $tools = []): string
 {
     $lidForJourney = (int) $license['id'];
-    $chainText = chain_prompt_text(chain_status($profile['industry'] ?: 'other', load_chain($lidForJourney), chain_evidence($aggregate), load_tests($lidForJourney)));
-    $stationText = stations_prompt_text(stations_status(load_stations($lidForJourney), station_evidence($aggregate), load_tests($lidForJourney)));
+    $chainSt   = chain_status($profile['industry'] ?: 'other', load_chain($lidForJourney), chain_evidence($aggregate), load_tests($lidForJourney));
+    $chainText = chain_prompt_text($chainSt);
+    $stationText = stations_prompt_text(stations_status(load_stations($lidForJourney), station_evidence($aggregate), load_tests($lidForJourney), $chainSt['rows']));
     $toolLines = [];
     foreach (tools_summary($tools, $aggregate)['rows'] as $t) {
         $toolLines[] = '- ' . $t['name'] . ': ' . money((float) $t['cost']) . '/month'

@@ -16,8 +16,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
 | **business profile** | Company, social media, team, goals | intake form |
 | **Your tools** | The software list with monthly cost and seats, matched to the audit (Team Audit) | software inventory, SaaS stack |
-| **7 stations** | Lead capture · Speed to lead · Follow-up · Booking and conversion · Onboarding and handoff · Delivery · Retention and referral. Three questions at each: **Process** (Defined / Partly / Improvised), **Owner** (A named person / The owner / Nobody), **Automation** (Automated / Manual / Missing) | stages, funnel steps |
-| **Client journey** | The chain from new lead to paid invoice; each link marked Automatic / By hand / Sometimes / Doesn't happen | pipeline audit, process map |
+| **Client journey** | One flow of **7 stations**: Lead capture · Speed to lead · Follow-up · Booking and conversion · Onboarding and handoff · Delivery · Retention and referral. Three questions at each: **Process** (Defined / Partly / Improvised), **Owner** (A named person / The owner / Nobody), **Automation** (Automated / Manual / Missing). Each station lists its steps, each marked Automatic / By hand / Sometimes / Doesn't happen | stages, funnel steps, pipeline audit, process map |
 | **handoff tests** | Test lead, test booking, no-show and recap tests our team runs; shown as "Tested by our team" | mystery shop (internal only) |
 | **Interruptions** | Short check-ins (under 2 minutes) to social media, chat or email in the middle of work | distractions, time wasting |
 | **back and forth** | Two tools people jump between most, e.g. Gmail ↔ Google Sheets | context switching |
@@ -33,7 +32,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - Extension: **Start my free audit** · **Show** (after email) · **Copy report prompt for ChatGPT or Claude** · **Download my data**
 - Extension, free: **Audit my whole team →** · **Want this for your whole team? See Team Audits →** · **Have a team key?**
 - Extension, team: **Send to my Business Portal** · **Open Business Portal ↗** · **Start a new audit**
-- Portal home steps: **Tell us about your business** · **Get your team connected** · **Answer some quick questions** · **Get your report**
+- Portal home steps: **Tell us about your business** · **List the software you pay for** · **Get your team connected** · **Answer some quick questions** · **Map your client journey** · **Get your report**
 - Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Turn on Results Tracking** · **Book a call to build these agents →**
 - Team invite page: **Join [company]'s Team Audit** → Add the extension · Paste your team key · Turn tracking on
 

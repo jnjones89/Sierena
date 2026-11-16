@@ -15,36 +15,36 @@ const CHAIN_ANSWERS = [
     'never'     => "Doesn't happen",
 ];
 
-/** Each link: [id, short label, question, agent, fix]. */
+/** Each link: [id, short label, question, agent, fix, station (see stations.php)]. */
 function chain_base(): array
 {
     return [
         ['lead_reply', 'Lead gets a reply', 'Does every new lead get a reply within 5 minutes?',
-            'Instant Reply Agent', 'Reply by text and email within a minute, with a link to book a call.'],
+            'Instant Reply Agent', 'Reply by text and email within a minute, with a link to book a call.', 'speed'],
         ['booking', 'Call gets booked', 'Do people book calls with a link, without back-and-forth emails?',
-            'Scheduling Agent', 'Send a booking link so people pick a time themselves.'],
+            'Scheduling Agent', 'Send a booking link so people pick a time themselves.', 'conversion'],
         ['reminders', 'Confirmation and reminders', 'Does every booked call get a confirmation and reminders?',
-            'Reminder Agent', 'Confirm right away, then remind a day before and an hour before.'],
+            'Reminder Agent', 'Confirm right away, then remind a day before and an hour before.', 'conversion'],
         ['no_show', 'No-shows get rebooked', 'When someone misses a call, do they get a rebook message the same day?',
-            'No-show Agent', 'Text and email a rebook link within an hour of a missed call.'],
+            'No-show Agent', 'Text and email a rebook link within an hour of a missed call.', 'conversion'],
         ['notes', 'Call notes saved', 'Are the notes from every call saved in your CRM?',
-            'Meeting Follow-up Agent', 'Notes are drafted from the call and saved to the client record.'],
+            'Meeting Follow-up Agent', 'Notes are drafted from the call and saved to the client record.', 'conversion'],
         ['recap', 'Recap after the call', 'Does every call get a recap email with next steps within 24 hours?',
-            'Meeting Follow-up Agent', 'A recap with next steps is drafted when the call ends. You check it and send.'],
+            'Meeting Follow-up Agent', 'A recap with next steps is drafted when the call ends. You check it and send.', 'conversion'],
         ['next_steps', 'Next steps have an owner', 'Does every next step become a task with an owner and a due date?',
-            'Meeting Follow-up Agent', 'Next steps from the recap become tasks automatically.'],
+            'Meeting Follow-up Agent', 'Next steps from the recap become tasks automatically.', 'conversion'],
         ['proposal', 'Proposal or quote', 'Do proposals or quotes go out within 2 business days of the call?',
-            'Proposal Agent', 'Draft the proposal from the call notes and your pricing, ready for you to review.'],
+            'Proposal Agent', 'Draft the proposal from the call notes and your pricing, ready for you to review.', 'conversion'],
         ['proposal_chase', 'Proposal follow-up', 'Do unanswered proposals get followed up?',
-            'Follow-up Sequence', 'Follow up on day 2, 5 and 10 until they decide.'],
+            'Follow-up Sequence', 'Follow up on day 2, 5 and 10 until they decide.', 'followup'],
         ['onboarding', 'Signed → onboarding', 'When a client signs, does onboarding start on its own?',
-            'Onboarding Agent', 'Signing sends the welcome email, forms and a kickoff booking link.'],
+            'Onboarding Agent', 'Signing sends the welcome email, forms and a kickoff booking link.', 'onboarding'],
         ['invoice', 'Invoice and payment', 'Do invoices and payment reminders go out on schedule?',
-            'Invoice Agent', 'Invoice when the work is done, with friendly reminders until paid.'],
+            'Invoice Agent', 'Invoice when the work is done, with friendly reminders until paid.', 'delivery'],
         ['review', 'Review request', 'Are happy clients asked for a review?',
-            'Review Agent', 'Ask at the right moment and send unhappy clients to you first.'],
+            'Review Agent', 'Ask at the right moment and send unhappy clients to you first.', 'retention'],
         ['referral', 'Referral ask', 'Do happy clients get asked for referrals?',
-            'Referral Sequence', 'Ask after a win, with an easy way to introduce someone.'],
+            'Referral Sequence', 'Ask after a win, with an easy way to introduce someone.', 'retention'],
     ];
 }
 
@@ -54,33 +54,33 @@ function chain_industry(string $industry): array
     $extra = [
         'funding' => [
             ['next_steps', ['fund_docs', 'Documents collected', 'Do missing documents get requested automatically until the file is complete?',
-                'Document Chaser Agent', 'Clients get texts and emails listing exactly what is still missing, with a secure upload link.']],
+                'Document Chaser Agent', 'Clients get texts and emails listing exactly what is still missing, with a secure upload link.', 'conversion']],
             ['fund_docs', ['fund_submit', 'Sent to lenders', 'Do complete files go to lenders within 1 business day?',
-                'Submission Tracker', 'Each submission is logged with the lender, date and status.']],
+                'Submission Tracker', 'Each submission is logged with the lender, date and status.', 'conversion']],
             ['fund_submit', ['proposal', 'Offers explained', 'Do clients get each funding offer explained in writing within 24 hours?',
-                'Offer Summary Agent', 'Each offer becomes a plain-language summary of the full cost, ready to send.']],
+                'Offer Summary Agent', 'Each offer becomes a plain-language summary of the full cost, ready to send.', 'conversion']],
             ['invoice', ['fund_renewal', 'Renewal check-in', 'Do funded clients hear from you when they may qualify again?',
-                'Renewal Agent', 'A check-in goes out when they are likely to qualify for more or a better rate.']],
+                'Renewal Agent', 'A check-in goes out when they are likely to qualify for more or a better rate.', 'retention']],
         ],
         'lending' => [
             ['next_steps', ['lend_docs', 'Documents collected', 'Do missing documents get requested automatically until the file is complete?',
-                'Document Chaser Agent', 'Borrowers get texts and emails listing exactly what is still missing.']],
+                'Document Chaser Agent', 'Borrowers get texts and emails listing exactly what is still missing.', 'conversion']],
             ['lend_docs', ['lend_status', 'Status updates', 'Do borrowers get an update at each step without calling you?',
-                'Status Update Agent', 'Each pipeline step sends the borrower a short update.']],
+                'Status Update Agent', 'Each pipeline step sends the borrower a short update.', 'conversion']],
         ],
         'insurance' => [
             ['next_steps', ['proposal', 'Quote sent', 'Do quotes go out within 24 hours of the call?',
-                'Quote Agent', 'The quote summary is drafted from the call notes, ready to send.']],
+                'Quote Agent', 'The quote summary is drafted from the call notes, ready to send.', 'conversion']],
             ['invoice', ['ins_renewal', 'Renewal review', 'Do clients get a renewal review 60–90 days before their policy renews?',
-                'Renewal Agent', 'Upcoming renewals are flagged and outreach starts on its own.']],
+                'Renewal Agent', 'Upcoming renewals are flagged and outreach starts on its own.', 'retention']],
         ],
         'credit' => [
             ['onboarding', ['cr_updates', 'Dispute updates', 'Do clients get a progress update after every dispute round?',
-                'Dispute Tracker Agent', 'Each round sends the client an update and reminds you of the next date.']],
+                'Dispute Tracker Agent', 'Each round sends the client an update and reminds you of the next date.', 'delivery']],
         ],
         'healthcare' => [
             ['review', ['hc_rebook', 'Next visit booked', 'Do patients get a reminder when their next treatment is due?',
-                'Rebooking Agent', 'Patients get a reminder at the right time for each treatment.']],
+                'Rebooking Agent', 'Patients get a reminder at the right time for each treatment.', 'retention']],
         ],
     ];
     return $extra[$industry] ?? [];
@@ -116,8 +116,8 @@ function chain_links(string $industry): array
         array_splice($links, $pos, 0, [$link]);
     }
     $out = [];
-    foreach ($links as [$id, $label, $q, $agent, $fix]) {
-        $out[$id] = ['id' => $id, 'label' => $label, 'q' => $q, 'agent' => $agent, 'fix' => $fix];
+    foreach ($links as [$id, $label, $q, $agent, $fix, $station]) {
+        $out[$id] = ['id' => $id, 'label' => $label, 'q' => $q, 'agent' => $agent, 'fix' => $fix, 'station' => $station];
     }
     return $out;
 }
