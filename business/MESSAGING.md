@@ -17,6 +17,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **business profile** | Company, social media, team, goals | intake form |
 | **Your tools** | The software list with monthly cost and seats, matched to the audit (Team Audit) | software inventory, SaaS stack |
 | **Client journey** | One flow of **7 stations**: Lead capture · Speed to lead · Follow-up · Booking and conversion · Onboarding and handoff · Delivery · Retention and referral. Three questions at each: **Process** (Defined / Partly / Improvised), **Owner** (A named person / The owner / Nobody), **Automation** (Automated / Manual / Missing). Each station lists its steps, each marked Automatic / By hand / Sometimes / Doesn't happen | stages, funnel steps, pipeline audit, process map |
+| **From your CRM** | Real numbers from the customer's own GoHighLevel (Connect GoHighLevel, read-only) | CRM sync, integration data |
 | **handoff tests** | Test lead, test booking, no-show and recap tests our team runs; shown as "Tested by our team" | mystery shop (internal only) |
 | **Interruptions** | Short check-ins (under 2 minutes) to social media, chat or email in the middle of work | distractions, time wasting |
 | **back and forth** | Two tools people jump between most, e.g. Gmail ↔ Google Sheets | context switching |
@@ -65,6 +66,7 @@ Customers request it from Help in the Business Portal. You refund in Stripe.
 - *Never touched: emails and messages, files on your computer, passwords, or anything you type.*
 - *Easy to remove: right-click the icon and choose Remove from Chrome. Its data on your computer goes with it.*
 - For teammates: *Your company sees the tools you use, time and repeated tasks, by role. Never what you type, read or send.*
+- CRM check: *Read-only: nothing in your CRM is changed. We keep the numbers only, never names, emails, phone numbers or message text.*
 - The audit bots' live feed only shows things the extension really saw. Never show "scanning your drive", "reading your email" or anything it doesn't do.
 
 ## Compliance line (always the same)

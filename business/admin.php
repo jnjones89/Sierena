@@ -177,8 +177,10 @@ if (isset($_GET['view'])) {
 
     <?php
       $cProfile = load_profile($lid);
-      $cStatus  = chain_status($cProfile['industry'] ?: 'other', load_chain($lid), chain_evidence($aggregate), load_tests($lid));
-      $sStatus  = stations_status(load_stations($lid), station_evidence($aggregate), load_tests($lid), $cStatus['rows']);
+      $cJourney = journey_full($lid, (string) ($cProfile['industry'] ?: 'other'), $aggregate);
+      $cStatus  = $cJourney['chain'];
+      $sStatus  = $cJourney['stations'];
+      $cCrm     = $cJourney['crm'];
       $cTests   = load_tests($lid);
     ?>
     <section class="card">
@@ -193,6 +195,19 @@ if (isset($_GET['view'])) {
         <?php endforeach; ?>
       </div>
       <?php foreach ($sStatus['rows'] as $r): foreach (array_merge($r['flags'], $r['evidence']) as $note): ?><p class="evidence"><b><?= h($r['title']) ?>:</b> <?= h($note) ?></p><?php endforeach; endforeach; ?>
+    </section>
+
+    <section class="card">
+      <h2>Their CRM (GoHighLevel)</h2>
+      <?php if (empty($cCrm['stats'])): ?>
+        <p class="muted">Not connected. They can connect it from Client journey → Connect GoHighLevel.</p>
+      <?php else: ?>
+        <p class="muted small">Location <?= h((string) $cCrm['location_id']) ?> · connected <?= h(substr((string) $cCrm['connected_at'], 0, 10)) ?> · checked <?= h(substr((string) $cCrm['stats']['checked_at'], 0, 16)) ?> UTC</p>
+        <?php foreach (crm_findings($cCrm['stats'])['stations'] as $sid => $notes): foreach ($notes as $n): ?>
+          <p class="evidence crm <?= h($n['level']) ?>"><b><?= h(stations()[$sid]['title'] ?? $sid) ?>:</b> <?= h($n['text']) ?></p>
+        <?php endforeach; endforeach; ?>
+        <?php foreach ($cCrm['stats']['skipped'] ?? [] as $part => $why): ?><p class="muted small">Couldn't read <?= h($part) ?>: <?= h($why) ?></p><?php endforeach; ?>
+      <?php endif; ?>
     </section>
 
     <section class="card">

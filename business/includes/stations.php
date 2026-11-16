@@ -265,7 +265,7 @@ function station_flags(string $id, array $facts): array
 /**
  * Score every station. status: ok (green), weak (amber), broken (red), unknown (grey).
  */
-function stations_status(array $answers, array $evidence, array $tests, array $chainRows = []): array
+function stations_status(array $answers, array $evidence, array $tests, array $chainRows = [], array $crm = []): array
 {
     $linksBy = [];
     foreach ($chainRows as $lid => $lr) {
@@ -313,13 +313,19 @@ function stations_status(array $answers, array $evidence, array $tests, array $c
         if ($status === 'ok' && ($flags || !empty($evidence[$id]))) {
             $status = 'weak';
         }
+        $crmNotes = $crm[$id] ?? [];
+        foreach ($crmNotes as $n) {
+            if ($n['level'] !== 'ok') {
+                $status = $status === 'unknown' ? $n['level'] : journey_worse($status, $n['level']);
+            }
+        }
         if ($failed) {
             $status = 'broken';
         }
         $counts[$status]++;
         $rows[$id] = $def + [
             'id' => $id, 'answers' => $a, 'score' => $score, 'status' => $status, 'flags' => $flags,
-            'evidence' => $evidence[$id] ?? [], 'tests' => $stTests, 'links' => $links,
+            'evidence' => $evidence[$id] ?? [], 'tests' => $stTests, 'links' => $links, 'crm' => $crmNotes,
             'complete' => ($a['process'] ?? '') !== '' && ($a['owner'] ?? '') !== '' && ($a['automation'] ?? '') !== '',
         ];
     }
@@ -354,6 +360,7 @@ function stations_prompt_text(array $status): string
         if ($facts) { $line .= "\nFacts: " . implode(' | ', $facts); }
         if ($r['flags']) { $line .= "\nFlags: " . implode(' ', $r['flags']); }
         if ($r['evidence']) { $line .= "\nAudit evidence: " . implode(' ', $r['evidence']); }
+        if ($r['crm']) { $line .= "\nTheir CRM: " . implode(' ', array_column($r['crm'], 'text')); }
         foreach ($r['tests'] as $t) {
             $line .= "\nOur test (" . $t['label'] . '): ' . (TEST_RESULTS[$t['result']] ?? '') . ($t['detail'] !== '' ? ' — ' . $t['detail'] : '');
         }

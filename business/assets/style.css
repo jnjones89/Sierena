@@ -208,3 +208,19 @@ a.station-tile:hover { border-color: var(--accent); }
 input.pct { display: inline-block; width: 90px; margin: 0; }
 .link-row { padding: 6px 0 10px; border-bottom: 1px solid var(--border); }
 .link-row:last-child { border-bottom: none; }
+
+/* CRM (GoHighLevel) numbers */
+.evidence.crm { background: #eaf2ff; color: #1d3f78; }
+.evidence.crm.weak { background: var(--amber-soft); color: #6b4a00; }
+.evidence.crm.broken { background: #fdecec; color: #8a1f1f; }
+.evidence.crm.ok { background: #e9f7ef; color: #1f6b41; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 0 0 18px; }
+.kpi { background: #fff; border: 1px solid var(--line, #e3e6ee); border-radius: 14px; padding: 14px; }
+.kpi b { display: block; font-size: 24px; }
+.kpi span { color: var(--muted); font-size: 14px; }
+ul.clean { padding-left: 18px; margin: 0 0 12px; }
+ul.clean li, .steps-plain li { margin: 6px 0; }
+.steps-plain { padding-left: 20px; }
+.crm-form { display: grid; gap: 12px; max-width: 460px; margin-top: 14px; }
+.crm-trust { color: var(--muted); font-size: 14px; }
+.crm-trust::before { content: "✓ "; color: var(--green); font-weight: 700; }

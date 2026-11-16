@@ -74,6 +74,13 @@ return [
         'alja'   => ['api_token' => '', 'location_id' => 'xAlVOKt0OfFGc5f5WPAh', 'events' => ['instant_report_ready', 'final_plan_sent', 'wants_help']],
     ],
 
+    // ---- Client CRM check (customers connect their own GoHighLevel, read-only) ----
+    // Encrypts their tokens. Any long random string; keep it secret and don't change it later
+    // (customers would have to reconnect). If empty, a key is derived from admin_password.
+    'data_key'   => '',
+    // How many recent new leads to check for reply speed and follow-up.
+    'crm_sample' => 40,
+
     // ---- MySQL (Hostinger hPanel → Databases → MySQL Databases) ----
     'db_dsn'  => 'mysql:host=localhost;dbname=u123456789_swa;charset=utf8mb4',
     'db_user' => 'u123456789_swa',

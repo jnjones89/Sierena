@@ -104,7 +104,18 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
 - On `admin.php`, each customer has **Handoff tests**. Results show to the customer as "Tested by our team" and override
   guesses. The report's section 7 covers each station; section 8 is "Where things fall through the cracks".
 
-## GoHighLevel
+## Client CRM check (GoHighLevel, optional)
+- On the Client journey page, customers can **Connect GoHighLevel** with a read-only Private Integration token
+  (scopes: contacts, conversations, messages, calendars, events, opportunities, all `.readonly`).
+- We check the last 90 days: new contacts and sources, speed to lead (sample of 40 new leads: first reply time,
+  % never answered, % within 5 minutes), follow-ups per lead and channels, show rate, no-show rebooking, close rate
+  and open deals stuck 30+ days.
+- Only the numbers are kept (in the profile). Names, emails, phone numbers and message text are never saved.
+  The token is encrypted with `data_key` (set it in config). Disconnect deletes the token and the numbers.
+- The numbers show as **From your CRM** on the matching stations and steps, can only make a status worse,
+  appear on `admin.php`, and go into the report prompt as "FROM THEIR CRM". Code: `includes/crm.php`.
+
+## GoHighLevel (your own Sirena Flow account)
 See `GHL-SETUP.md`: connect tokens, click **Create GHL fields** on the admin page, then build the tag-triggered workflows.
 
 ## Wording

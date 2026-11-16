@@ -168,6 +168,28 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('journey', $next ? 'Saved.' : "That's all 7 stations. Thank you!");
     }
 
+    if ($action === 'crm_connect') {
+        $err = crm_connect($lid, (string) ($_POST['location_id'] ?? ''), (string) ($_POST['token'] ?? ''));
+        if ($err !== '') {
+            go('crm', $err, 'error');
+        }
+        go('crm', 'Connected. Your CRM numbers are now on your Client journey.');
+    }
+
+    if ($action === 'crm_refresh') {
+        $last = crm_ts(crm_load($lid)['stats']['checked_at'] ?? null) ?? 0;
+        if ($last > time() - 600) {
+            go('crm', 'Your numbers were checked a few minutes ago. Try again in 10 minutes.', 'error');
+        }
+        $err = crm_refresh($lid);
+        go('crm', $err !== '' ? $err : 'Checked again. Your numbers are up to date.', $err !== '' ? 'error' : 'ok');
+    }
+
+    if ($action === 'crm_disconnect') {
+        crm_save($lid, null);
+        go('crm', 'Disconnected. We deleted your token and your CRM numbers.');
+    }
+
     if ($action === 'answer') {
         $industry = load_profile($lid)['industry'] ?: 'other';
         $items    = array_values(checklist_items($industry));
@@ -322,7 +344,7 @@ endif;
 /* ----------------------------- Data ------------------------------ */
 
 $page       = (string) ($_GET['page'] ?? 'home');
-$page       = isset(PORTAL_PAGES[$page]) ? $page : 'home';
+$page       = isset(PORTAL_PAGES[$page]) || $page === 'crm' ? $page : 'home';
 $lid        = (int) $license['id'];
 $profile    = load_profile($lid);
 $industry   = $profile['industry'] ?: 'other';
@@ -338,8 +360,10 @@ $company    = $profile['company'] ?: ($license['company'] ?: 'your business');
 $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
 $solo       = license_is_solo($license);
-$chainStatus = chain_status($industry, load_chain($lid), chain_evidence(aggregate_audits($audits)), load_tests($lid));
-$stStatus   = stations_status(load_stations($lid), station_evidence(aggregate_audits($audits)), load_tests($lid), $chainStatus['rows']);
+$journeyAll = journey_full($lid, $industry, aggregate_audits($audits));
+$chainStatus = $journeyAll['chain'];
+$stStatus   = $journeyAll['stations'];
+$crm        = $journeyAll['crm'];
 $coverage   = data_coverage($license, $audits, $devices);
 $finalIncluded = plan_includes_final_plan($license);
 $dis        = $active ? '' : ' disabled';
@@ -351,7 +375,7 @@ foreach (PORTAL_PAGES as $key => $label) {
     if ($key === 'team' && $solo) {
         $label = 'Your extension';
     }
-    echo '<a href="' . h(portal_url($key)) . '"' . ($key === $page ? ' class="on" aria-current="page"' : '') . '>' . h($label) . '</a>';
+    echo '<a href="' . h(portal_url($key)) . '"' . (($key === $page || ($key === 'journey' && $page === 'crm')) ? ' class="on" aria-current="page"' : '') . '>' . h($label) . '</a>';
 }
 echo '</nav>';
 $showFlash();
@@ -889,7 +913,7 @@ elseif ($page === 'journey' || $page === 'stations'):
           <span title="Owner">O: <?= h(STATION_OWNER[$a['owner'] ?? ''] ?? '—') ?></span>
           <span title="Automation">A: <?= h(STATION_AUTOMATION[$a['automation'] ?? ''] ?? '—') ?></span>
         </span>
-        <?php if ($r['flags'] || $r['evidence'] || $r['tests']): ?><span class="st-note"><?= count($r['flags']) + count($r['evidence']) + count($r['tests']) ?> note<?= count($r['flags']) + count($r['evidence']) + count($r['tests']) === 1 ? '' : 's' ?></span><?php endif; ?>
+        <?php $notes = count($r['flags']) + count($r['evidence']) + count($r['tests']) + count($r['crm']); if ($notes): ?><span class="st-note"><?= $notes ?> note<?= $notes === 1 ? '' : 's' ?><?= $r['crm'] ? ' · CRM' : '' ?></span><?php endif; ?>
       </a>
     <?php endforeach; ?>
   </div>
@@ -899,6 +923,18 @@ elseif ($page === 'journey' || $page === 'stations'):
       <?php $i = 0; foreach ($chainStatus['rows'] as $cr): ?><?php if ($i++ > 0): ?><span class="arrow" aria-hidden="true">→</span><?php endif; ?><span class="link <?= h($cr['status']) ?>"><?= h($cr['label']) ?></span><?php endforeach; ?>
     </div>
     <p class="muted small legend"><span class="dot ok"></span> Automatic · <span class="dot manual"></span> By hand or sometimes · <span class="dot broken"></span> Broken · <span class="dot unknown"></span> Not answered</p>
+  </section>
+  <section class="card crm-card">
+    <?php if (!empty($crm['stats'])): ?>
+      <h2>Your CRM is connected</h2>
+      <p class="muted">Real numbers from your GoHighLevel are on the stations above, marked <b>From your CRM</b>. Last checked <?= h(date('M j, g:i a', crm_ts($crm['stats']['checked_at']) ?: time())) ?>.</p>
+      <p><a class="btn" href="<?= h(portal_url('crm')) ?>">See your CRM numbers</a></p>
+    <?php else: ?>
+      <h2>Use GoHighLevel? Add your real numbers (optional)</h2>
+      <p class="muted">Connect it read-only and we check the last 90 days: how fast new leads get a reply, how many follow-ups they get,
+        your show rate and your close rate. We keep the numbers only. Nothing in your CRM is changed.</p>
+      <p><a class="btn" href="<?= h(portal_url('crm')) ?>">Connect GoHighLevel</a></p>
+    <?php endif; ?>
   </section>
 <?php
     else:
@@ -945,6 +981,7 @@ elseif ($page === 'journey' || $page === 'stations'):
             <p class="q"><?= h($lr['label']) ?> <span class="muted small" style="font-weight:400"><?= h($lr['q']) ?></span></p>
             <?= $radio('link_' . $linkId, CHAIN_ANSWERS, (string) $lr['answer']) ?>
             <?php if ($lr['evidence']): ?><p class="evidence"><b>What the audit saw:</b> <?= h($lr['evidence']['text']) ?></p><?php endif; ?>
+            <?php if (!empty($lr['crm'])): ?><p class="evidence crm <?= h($lr['crm']['level']) ?>"><b>From your CRM:</b> <?= h($lr['crm']['text']) ?></p><?php endif; ?>
             <?php if ($lr['test']): ?><p class="tested <?= $lr['test']['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($lr['test']['label']) ?>):</b> <?= h(TEST_RESULTS[$lr['test']['result']]) ?><?= $lr['test']['detail'] !== '' ? ' · ' . h($lr['test']['detail']) : '' ?></p><?php endif; ?>
           </div>
         <?php endforeach; ?>
@@ -962,9 +999,11 @@ elseif ($page === 'journey' || $page === 'stations'):
       <?= $radio('automation', STATION_AUTOMATION, (string) ($a['automation'] ?? '')) ?>
     </section>
 
-    <?php if ($r['flags'] || $r['evidence'] || $r['tests'] || in_array($r['status'], ['weak', 'broken'], true)): ?>
+    <?php if ($r['flags'] || $r['evidence'] || $r['tests'] || $r['crm'] || in_array($r['status'], ['weak', 'broken'], true)): ?>
       <section class="card">
         <h2>What we noticed</h2>
+        <?php $shownCrm = array_filter(array_map(fn($lr) => $lr['crm']['text'] ?? null, $r['links'])); ?>
+        <?php foreach ($r['crm'] as $cn): if (in_array($cn['text'], $shownCrm, true)) { continue; } ?><p class="evidence crm <?= h($cn['level']) ?>"><b>From your CRM:</b> <?= h($cn['text']) ?></p><?php endforeach; ?>
         <?php foreach ($r['flags'] as $f): ?><p class="evidence"><?= h($f) ?></p><?php endforeach; ?>
         <?php foreach ($r['evidence'] as $e): ?><p class="evidence"><b>What the audit saw:</b> <?= h($e) ?></p><?php endforeach; ?>
         <?php $shownTests = array_filter(array_map(fn($lr) => $lr['test']['label'] ?? null, $r['links'])); ?>
@@ -988,6 +1027,73 @@ elseif ($page === 'journey' || $page === 'stations'):
 <?php
     endif;
 
+/* ------------------------------ CRM ------------------------------ */
+elseif ($page === 'crm'):
+    $cs = $crm['stats'] ?? null;
+?>
+  <p class="muted small" style="margin:0"><a href="<?= h(portal_url('journey')) ?>">← Client journey</a></p>
+  <h1>Your CRM numbers</h1>
+  <?php if (!$cs): ?>
+    <p class="lead">Connect your GoHighLevel and we check the last 90 days. The numbers show up on your Client journey, next to your answers.</p>
+    <section class="card">
+      <h2>What we check</h2>
+      <ul class="clean">
+        <li><b>Speed to lead:</b> how fast new leads get their first reply, and how many never get one.</li>
+        <li><b>Follow-up:</b> how many times new leads hear from you in their first 30 days, and on which channels.</li>
+        <li><b>Booking:</b> show rate, no-shows, and whether no-shows book again.</li>
+        <li><b>Pipeline:</b> close rate, and open deals that haven't moved in 30 days.</li>
+        <li><b>Lead sources:</b> where new contacts come from.</li>
+      </ul>
+      <p class="crm-trust">Read-only: nothing in your CRM is changed. We keep the numbers only, never names, emails, phone numbers or message text.
+        Your token is stored encrypted, and you can disconnect at any time.</p>
+    </section>
+    <section class="card">
+      <h2>Connect in 3 steps</h2>
+      <ol class="steps-plain">
+        <li>In GoHighLevel, open your sub-account and go to <b>Settings → Private Integrations</b>. Click <b>Create new integration</b> and name it "Workflow Shadow Audit".</li>
+        <li>Turn on these <b>read-only</b> scopes only: <?= h(implode(', ', CRM_SCOPES)) ?>. Copy the token.</li>
+        <li>Find your <b>Location ID</b> in <b>Settings → Business Profile</b>, then paste both below.</li>
+      </ol>
+      <?php if ($active): ?>
+        <form method="post" action="portal.php" class="crm-form">
+          <?= csrf_field() ?><input type="hidden" name="action" value="crm_connect">
+          <label>Location ID<input type="text" name="location_id" maxlength="40" autocomplete="off" required></label>
+          <label>Private Integration token<input type="password" name="token" maxlength="400" autocomplete="off" required></label>
+          <button class="btn primary" type="submit">Connect and check my numbers</button>
+          <p class="muted small">This takes up to a minute.</p>
+        </form>
+      <?php endif; ?>
+    </section>
+  <?php else:
+      $found = crm_findings($cs);
+      $stationsDef = stations();
+  ?>
+    <p class="lead">From your GoHighLevel, last <?= (int) $cs['days'] ?> days. Checked <?= h(date('M j, g:i a', crm_ts($cs['checked_at']) ?: time())) ?>.</p>
+    <div class="kpis">
+      <?php if (isset($cs['contacts'])): ?><div class="kpi"><b><?= (int) $cs['contacts']['new'] ?></b><span>new contacts</span></div><?php endif; ?>
+      <?php if (isset($cs['speed']['never_pct'])): ?><div class="kpi"><b><?= (int) $cs['speed']['never_pct'] ?>%</b><span>never got a reply</span></div><?php endif; ?>
+      <?php if (isset($cs['speed']['median_minutes'])): ?><div class="kpi"><b><?= h(crm_minutes_text((int) $cs['speed']['median_minutes'])) ?></b><span>typical first reply</span></div><?php endif; ?>
+      <?php if (isset($cs['followup']['avg_touches'])): ?><div class="kpi"><b><?= h((string) $cs['followup']['avg_touches']) ?></b><span>follow-ups per lead</span></div><?php endif; ?>
+      <?php if (isset($cs['calendar']['show_rate'])): ?><div class="kpi"><b><?= (int) $cs['calendar']['show_rate'] ?>%</b><span>show rate</span></div><?php endif; ?>
+      <?php if (isset($cs['deals']['close_rate'])): ?><div class="kpi"><b><?= (int) $cs['deals']['close_rate'] ?>%</b><span>close rate</span></div><?php endif; ?>
+    </div>
+    <section class="card">
+      <h2>What the numbers say</h2>
+      <?php foreach ($found['stations'] as $sid2 => $notes): foreach ($notes as $n): ?>
+        <p class="evidence crm <?= h($n['level']) ?>"><b><?= h($stationsDef[$sid2]['title'] ?? $sid2) ?>:</b> <?= h($n['text']) ?></p>
+      <?php endforeach; endforeach; ?>
+      <?php if (!$found['stations']): ?><p class="muted">There wasn't enough data in the last <?= (int) $cs['days'] ?> days to say much yet.</p><?php endif; ?>
+      <?php foreach ($cs['skipped'] ?? [] as $part => $why): ?><p class="muted small">Couldn't read <?= h($part) ?>: <?= h($why) ?></p><?php endforeach; ?>
+    </section>
+    <?php if ($active): ?>
+      <div class="actions">
+        <form method="post" action="portal.php"><?= csrf_field() ?><input type="hidden" name="action" value="crm_refresh"><button class="btn primary" type="submit">Check again</button></form>
+        <form method="post" action="portal.php" onsubmit="return confirm('Disconnect your CRM and delete these numbers?')"><?= csrf_field() ?><input type="hidden" name="action" value="crm_disconnect"><button class="btn" type="submit">Disconnect</button></form>
+      </div>
+    <?php endif; ?>
+    <p class="crm-trust">Read-only. We keep these numbers only. Disconnecting deletes your token and the numbers.</p>
+  <?php endif; ?>
+<?php
 /* ------------------------------ Help ----------------------------- */
 elseif ($page === 'help'):
 ?>

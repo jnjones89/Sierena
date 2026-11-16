@@ -227,7 +227,7 @@ function load_tests(int $licenseId): array
 /**
  * Status per link: ok (green), manual / weak (amber), broken (red), unknown (grey).
  */
-function chain_status(string $industry, array $answers, array $evidence, array $tests): array
+function chain_status(string $industry, array $answers, array $evidence, array $tests, array $crm = []): array
 {
     $byLink = [];
     foreach (CHAIN_TESTS as $tid => $t) {
@@ -252,6 +252,11 @@ function chain_status(string $industry, array $answers, array $evidence, array $
         if ($status === 'ok' && $ev && $ev['manual']) {
             $status = 'manual';
         }
+        // Real numbers from their CRM can only make a step look worse, never better.
+        $crmNote = $crm[$id] ?? null;
+        if ($crmNote && $crmNote['level'] !== 'ok') {
+            $status = $status === 'unknown' ? $crmNote['level'] : journey_worse($status, $crmNote['level']);
+        }
         $test = $byLink[$id] ?? null;
         // Our team's real test outranks both the owner's answer and the browser evidence.
         if ($test && $test['result'] === 'fail') {
@@ -261,9 +266,16 @@ function chain_status(string $industry, array $answers, array $evidence, array $
             $ev = null;
         }
         $counts[$status]++;
-        $rows[$id] = $link + ['answer' => $a, 'status' => $status, 'evidence' => $ev, 'test' => $test];
+        $rows[$id] = $link + ['answer' => $a, 'status' => $status, 'evidence' => $ev, 'test' => $test, 'crm' => $crmNote];
     }
     return ['rows' => $rows, 'counts' => $counts];
+}
+
+/** The more serious of two statuses. */
+function journey_worse(string $a, string $b): string
+{
+    $rank = ['unknown' => 0, 'ok' => 1, 'manual' => 2, 'weak' => 2, 'broken' => 3];
+    return ($rank[$b] ?? 0) > ($rank[$a] ?? 0) ? $b : $a;
 }
 
 /** Text for the AI report prompt. */
@@ -274,6 +286,9 @@ function chain_prompt_text(array $status): string
         $line = '- ' . $r['label'] . ': ' . $r['q'] . ' -> ' . (CHAIN_ANSWERS[$r['answer']] ?? 'Not answered');
         if ($r['evidence']) {
             $line .= ' | Audit: ' . $r['evidence']['text'];
+        }
+        if (!empty($r['crm'])) {
+            $line .= ' | Their CRM: ' . $r['crm']['text'];
         }
         if ($r['test']) {
             $line .= ' | Our test: ' . (TEST_RESULTS[$r['test']['result']] ?? '') . ($r['test']['detail'] !== '' ? ' (' . $r['test']['detail'] . ')' : '');

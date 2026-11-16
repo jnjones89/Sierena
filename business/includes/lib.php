@@ -10,6 +10,7 @@ require_once __DIR__ . '/industries.php';
 require_once __DIR__ . '/tools.php';
 require_once __DIR__ . '/chains.php';
 require_once __DIR__ . '/stations.php';
+require_once __DIR__ . '/crm.php';
 
 /* ------------------------------------------------------------------ */
 /* Configuration                                                       */
@@ -1159,9 +1160,10 @@ function money(float $n): string
 function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = [], array $tools = []): string
 {
     $lidForJourney = (int) $license['id'];
-    $chainSt   = chain_status($profile['industry'] ?: 'other', load_chain($lidForJourney), chain_evidence($aggregate), load_tests($lidForJourney));
-    $chainText = chain_prompt_text($chainSt);
-    $stationText = stations_prompt_text(stations_status(load_stations($lidForJourney), station_evidence($aggregate), load_tests($lidForJourney), $chainSt['rows']));
+    $journey   = journey_full($lidForJourney, (string) ($profile['industry'] ?: 'other'), $aggregate);
+    $chainText = chain_prompt_text($journey['chain']);
+    $stationText = stations_prompt_text($journey['stations']);
+    $crmText   = crm_prompt_text($journey['crm']);
     $toolLines = [];
     foreach (tools_summary($tools, $aggregate)['rows'] as $t) {
         $toolLines[] = '- ' . $t['name'] . ': ' . money((float) $t['cost']) . '/month'
@@ -1242,7 +1244,7 @@ business and how it can be automated. Then list the 3–5 SOPs to write first.
 Use THE 7 STATIONS below (lead capture, speed to lead, follow-up, booking and conversion, onboarding and handoff,
 delivery, retention and referral). Start with a small table: Station | Process | Owner | Automation | Score.
 Then, for each station that is not green (weakest first): what is being missed (use the facts, flags, audit evidence and
-our tests), what it likely costs (lost leads, no-shows, slow payment, lost repeat business), and three fixes:
+our tests, and the CRM numbers when connected), what it likely costs (lost leads, no-shows, slow payment, lost repeat business), and three fixes:
 the **process fix** (Sirena: the defined steps and checklist), the **owner fix** (who should own it, so it doesn't sit
 with the business owner or nobody), and the **automation fix** (ALJA: the agent that runs it).
 ## 8. Where things fall through the cracks
@@ -1272,6 +1274,9 @@ Week 1 to Week 4, one or two actions each.
 
 ## CLIENT JOURNEY (does each step trigger the next?)
 {$chainText}
+
+## FROM THEIR CRM (GoHighLevel, last 90 days; real numbers, trust these over guesses)
+{$crmText}
 
 ## TEAM TELEMETRY (JSON)
 ```json
@@ -1926,7 +1931,7 @@ function export_customer_data(array $license): array
         'company'    => $license['company'],
         'email'      => $license['email'],
         'plan'       => plan_name($license),
-        'profile'    => profile_data($lid),
+        'profile'    => (function ($p) { if (isset($p['crm'])) { $p['crm'] = crm_public($p['crm']); } return $p; })(profile_data($lid)),
         'audits'     => array_map(fn($a) => $a['data'] + ['receivedAt' => $a['created_at']], list_audits($lid)),
         'reports'    => $reports->fetchAll(),
         'people'     => array_map(fn($d) => ['role' => $d['role_tag'], 'joined' => $d['first_seen'], 'lastActive' => $d['last_seen']], list_devices($lid)),
