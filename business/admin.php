@@ -148,8 +148,8 @@ if (isset($_GET['view'])) {
     <div class="stats">
       <div class="stat"><b><?= h(plan_name($license)) ?></b><span>Plan</span></div>
       <div class="stat"><b><?= count($devices) ?> / <?= (int) $license['seats'] ?></b><span>Seats used</span></div>
-      <div class="stat"><b><?= h(format_date($license['access_until'])) ?></b><span>Audit open until</span></div>
-      <div class="stat"><b><?= license_monitoring($license) ? 'On' : h($license['monitor_status'] === 'none' ? 'Off' : $license['monitor_status']) ?></b><span>Results Tracking</span></div>
+      <div class="stat"><b><?= license_monitoring($license) ? h(monitoring_tier($license)['price_label']) : h(format_date($license['access_until'])) ?></b><span><?= license_monitoring($license) ? 'Monthly' : 'Access until' ?></span></div>
+      <div class="stat"><b><?= license_monitoring($license) ? 'On' : h($license['monitor_status'] === 'none' ? 'Off' : $license['monitor_status']) ?></b><span>Subscriptiong</span></div>
     </div>
     <?php $stage = (string) (profile_data($lid)['stage'] ?? ''); ?>
     <form class="actions" method="post" action="admin.php" style="margin-bottom:10px">
@@ -304,7 +304,7 @@ $leads = db()->query('SELECT * FROM leads ORDER BY id DESC LIMIT 200')->fetchAll
       <div class="stat"><b><?= (int) $sb['free_audits'] ?></b><span>Free audits finished (emails)</span></div>
       <div class="stat"><b><?= (int) $sb['purchases'] ?></b><span>Paid audits<?= $sb['conversion'] !== null ? ' · ' . (int) $sb['conversion'] . '% of free' : '' ?></span></div>
       <div class="stat"><b><?= (int) $sb['reports'] ?> → <?= (int) $sb['final_plans'] ?></b><span>Instant reports → final plans</span></div>
-      <div class="stat"><b><?= (int) $sb['tracking'] ?></b><span>On Results Tracking</span></div>
+      <div class="stat"><b><?= (int) $sb['tracking'] ?></b><span>Active subscriptions</span></div>
       <div class="stat"><b><?= $sb['accuracy'] === null ? '—' : (int) $sb['accuracy'] . '%' ?></b><span>Said it found something real</span></div>
       <div class="stat"><b><?= $sb['nps'] === null ? '—' : (int) $sb['nps'] ?></b><span>Recommend score (NPS, <?= (int) $sb['nps_count'] ?> answers)</span></div>
       <div class="stat"><b><?= (int) $sb['wants_help'] ?></b><span>Asked for help fixing it</span></div>

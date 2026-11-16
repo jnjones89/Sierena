@@ -30,7 +30,7 @@ render_header('Payment confirmed');
 ?>
 <?php if ($license): ?>
   <h1>Payment confirmed 🎉</h1>
-  <p class="lead"><?= h(plan_name($license)) ?> for <?= h($license['company'] ?: $license['email']) ?> — <?= license_is_solo($license) ? 'just you' : 'up to ' . (int) $license['seats'] . ' people' ?>, open until <?= h(format_date($license['access_until'])) ?>. We've also emailed this key to <?= h($license['email']) ?>.</p>
+  <p class="lead"><?= h(plan_name($license)) ?> for <?= h($license['company'] ?: $license['email']) ?> — <?= license_is_solo($license) ? 'just you' : 'up to ' . (int) $license['seats'] . ' people' ?>, <?= h((string) (plan_info((string) $license['plan'])['price_label'] ?? 'monthly')) ?>, cancel any time. We've also emailed this key to <?= h($license['email']) ?>.</p>
 
   <section class="card">
     <h2><?= license_is_solo($license) ? 'Your key' : 'Your team key' ?></h2>

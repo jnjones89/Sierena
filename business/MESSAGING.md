@@ -8,8 +8,8 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 |---|---|---|
 | **Workflow Shadow Audit** | The product and the Chrome extension | "the plugin", "the widget" in customer copy |
 | **free audit** | One person, one 5-hour audit in the extension | Lite, trial, freemium |
-| **Solo Audit** | The paid, one-time audit for one person (solo founders) | Pro, Premium, single seat |
-| **Team Audit** | The paid, one-time audit for a whole team | Business plan, Business tier, Pro |
+| **Solo Audit** | The paid monthly plan for one person (solo founders), $97 / month | Pro, Premium, single seat |
+| **Team Audit** | The paid monthly plan for a whole team ($197 / $397 / $697 a month by size) | Business plan, Business tier, Pro |
 | **paid audit** | Solo Audit or Team Audit, when talking about both | upgrade, premium |
 | **Starter / Team / Company** | Team Audit sizes: up to 5 / 15 / 50 people | seats tier, bundle |
 | **team key** | The `AUDIT-XXXX-XXXX-XXXX-XXXX` code a buyer shares with their team | license key, Business key, access key |
@@ -26,7 +26,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **instant AI report** | Written by AI in the portal in 1–2 minutes | gap analysis, AI Gap Map |
 | **final plan** | Reviewed and published by our team, with the SOPs to write first | full report, custom report |
 | **report prompt** | The copy-paste prompt for ChatGPT or Claude | full AI report, analysis prompt |
-| **Results Tracking** | Optional monthly plan after the audit, month-by-month progress | monitoring, subscription, retainer |
+| **your subscription** | The monthly billing for a paid audit. Say "cancel any time". After canceling: **Restart my subscription** | retainer, membership, Results Tracking (retired name) |
 | **build** | Us building the AI agents for them | implementation, onboarding |
 
 ## Buttons and actions (exact wording)
@@ -34,11 +34,11 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - Extension, free: **Audit my whole team →** · **Want this for your whole team? See Team Audits →** · **Have a team key?**
 - Extension, team: **Send to my Business Portal** · **Open Business Portal ↗** · **Start a new audit**
 - Portal home steps: **Tell us about your business** · **List the software you pay for** · **Get your team connected** · **Answer some quick questions** · **Map your client journey** · **Get your report**
-- Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Turn on Results Tracking** · **Book a call to build these agents →**
+- Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Restart my subscription** (only after canceling) · **Book a call to build these agents →**
 - Team invite page: **Join [company]'s Team Audit** → Add the extension · Paste your team key · Turn tracking on
 
 ## Guarantee (always the same, set in config)
-*Not happy with your audit? Ask for your money back within 30 days. No questions asked.*
+*Not happy with your first month? Ask for your money back within 30 days. No questions asked.*
 Customers request it from Help in the Business Portal. You refund in Stripe.
 
 ## Survey (same three questions everywhere)
@@ -50,8 +50,8 @@ Customers request it from Help in the Business Portal. You refund in Stripe.
 - Solo Audit: *Just you, with no time limit. Keeps the hours you already tracked.*
 - Free audit: *Turn it on and work like normal. After 5 hours of work, you'll see the task you repeat most, the AI agent that can do it for you, and a simple step-by-step fix.*
 - Team Audit: *Everyone runs the private, read-only audit for a few days. You get one report: your biggest bottlenecks, the repetitive tasks behind them, the AI agents you need, and a step-by-step plan to fix them, plus a Back-Office Check for your industry.*
-- Results Tracking: *Keep auditing every month after your agents are built, and see what improved.*
-- Build credit: *If we build your agents, the audit price is credited toward the build.*
+- Every month after: *Keep auditing every month after your agents are built, and see what improved, Before → Now.*
+- Build credit: *If we build your agents, your first month is credited toward the build.*
 
 ## Style
 - Short sentences. Everyday words. One idea per sentence.
@@ -84,4 +84,4 @@ Source of truth: `business/includes/industries.php` and `workflow-shadow-audit/i
 3. Team pastes the **team key** → works normally → **Send to my Business Portal**
 4. Buyer fills in the **business profile** and **Back-Office Check** → **Get my instant AI report**
 5. Our team publishes the **final plan** (customer gets an email) → **Book a call to build these agents**
-6. After the build → **Results Tracking** shows month-by-month progress
+6. After the build → staying subscribed shows month-by-month progress and CRM Before → Now

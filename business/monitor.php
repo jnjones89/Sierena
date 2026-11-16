@@ -1,8 +1,8 @@
 <?php
 /*
- * Results Tracking (monthly subscription) for a signed-in Business customer.
- *   POST  → starts Stripe Checkout for the monthly plan
- *   GET ?session_id=… → Stripe's return URL; confirms payment and turns tracking on
+ * Restart a canceled monthly subscription for a signed-in Business customer (same plan, same key).
+ *   POST  → starts Stripe Checkout for the plan's monthly price
+ *   GET ?session_id=… → Stripe's return URL; confirms payment and turns access back on
  */
 declare(strict_types=1);
 require __DIR__ . '/includes/lib.php';
@@ -36,13 +36,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
         error_log('[SWA monitor] ' . $e->getMessage());
         back_to_portal('We could not confirm the payment yet. Refresh in a minute.', 'error');
     }
-    back_to_portal($updated ? 'Results Tracking is on. Keep syncing monthly to see your progress.' : 'Payment is still processing.');
+    back_to_portal($updated ? 'Your subscription is back on. Welcome back!' : 'Payment is still processing.');
 }
 
 // Start checkout.
 csrf_check();
 if (license_monitoring($license)) {
-    back_to_portal('Results Tracking is already on.');
+    back_to_portal('Your subscription is already on.');
 }
 if (!rate_limit('monitor_checkout', 10, 3600)) {
     back_to_portal('Too many attempts. Try again later.', 'error');

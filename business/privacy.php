@@ -67,7 +67,7 @@ render_header('Privacy policy');
       <li>In the extension, <b>Download my data</b> saves everything it recorded. Removing the extension deletes it from your computer.</li>
       <li>In the Business Portal, under <b>Help</b>, you can download all your company's data or delete it. We keep only the purchase record, which we need for receipts and refunds.</li>
       <li>For a free audit, email us and we will delete your email and results.</li>
-      <li>We keep paid audit data while your audit or Results Tracking is active, and delete it on request.</li>
+      <li>We keep paid audit data while your subscription is active, and delete it on request.</li>
     </ul>
   </section>
 

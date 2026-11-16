@@ -21,26 +21,27 @@ Merge fields in emails: `{{contact.swa_bottleneck}}`, `{{contact.swa_recommended
 (Check the exact keys under Settings → Custom Fields after step 3.)
 
 ## 2. Workflows (trigger: "Contact Tag added")
+All paid plans are monthly. `swa_audit_ends` is the end of the customer's first month. The `swa-results-tracking-*` tags kept their names: *on* = subscription restarted, *canceled* = subscription ended.
 Add **Goal: tag `swa-team-audit-purchased` added** to the free-audit workflow so buyers stop getting nurture emails.
 
 | # | Tag | Steps |
 |---|---|---|
 | 1 | `swa-free-audit` | Email 1 now → wait 2 days → Email 2 → wait 3 days → Email 3 → wait 4 days → Email 4 |
 | 2 | `swa-wants-help` | Internal notification + task "Call today" → Email "We'll reach out" → (ALJA) create opportunity |
-| 3 | `swa-team-audit-purchased` | Internal notification → Welcome email → wait 2 days → if NOT `swa-first-audit-received`: reminder → wait until `swa_audit_ends` minus 7 days → "One week left" |
+| 3 | `swa-team-audit-purchased` | Internal notification → Welcome email → wait 2 days → if NOT `swa-first-audit-received`: reminder → wait until `swa_audit_ends` (end of the first month) minus 7 days → "First month check-in" |
 | 4 | `swa-first-audit-received` | Email "Your data is in" |
 | 5 | `swa-instant-report-ready` | Internal task "Write final plan (due in 2 business days)" → (ALJA) opportunity "Build: discovery" |
 | 6 | `swa-final-plan-sent` | Email "Book your build call" → wait 2 days → reminder → wait 3 days → last reminder (stop when appointment booked) |
-| 7 | `swa-results-tracking-on` | Welcome email |
-| 8 | `swa-results-tracking-canceled` | Wait 14 days → win-back email |
+| 7 | `swa-results-tracking-on` (subscription restarted) | "Welcome back" email |
+| 8 | `swa-results-tracking-canceled` (subscription ended) | Internal notification → wait 14 days → win-back email |
 | 9 | `swa-refund-requested` | Internal notification + task "Refund in Stripe and reply" |
 
 Optional segments: `swa-plan-solo`, `swa-plan-starter`, `swa-plan-team`, `swa-plan-company`, `swa-industry-<industry>`.
 
 ## 3. Emails
 **Sirena Flow: done.** All 12 are in Marketing → Emails → Templates → folder **Workflow Shadow Audit**:
-SWA 01–04 free audit (day 0, 2, 5, 9) · 05 welcome · 06 no audits yet · 07 one week left · 08 first audit received ·
-09 wants help · 10 final plan sent · 11 Results Tracking welcome · 12 win-back (day 14).
+SWA 01–04 free audit (day 0, 2, 5, 9) · 05 welcome · 06 no audits yet · 07 first month check-in · 08 first audit received ·
+09 wants help · 10 final plan sent · 11 welcome back (restarted) · 12 win-back (day 14).
 Set the From name and From email on each. The drafts below are the same text, for reference.
 
 ### Drafts (edit freely)
@@ -63,7 +64,7 @@ Set the From name and From email on each. The drafts below are the same text, fo
 
 **Purchase — welcome.** Subject: *You're in. Here's step 1*
 > Your {{contact.swa_plan}} is ready. Sign in to your Business Portal: {{contact.swa_portal_link}}
-> Step 1: tell us about your business. Step 2: invite your team (or connect your extension). Your audit is open until {{contact.swa_audit_ends}}.
+> Step 1: tell us about your business. Step 2: invite your team (or connect your extension). Your plan is monthly; cancel any time from Billing & invoices in your portal.
 
 **Purchase — reminder (no audits yet).** Subject: *Your team hasn't connected yet*
 > No audits have come in yet. Send your team the invite message from the "Your team" page. It takes them 2 minutes.
@@ -72,7 +73,7 @@ Set the From name and From email on each. The drafts below are the same text, fo
 > Your first audit just arrived. Answer the quick questions, list your tools, then get your instant AI report: {{contact.swa_portal_link}}
 
 **Final plan sent — book the build.** Subject: *Your plan is ready. Let's build it*
-> Your final plan is in your portal. Your audit price is credited toward the build. [Book your build call]
+> Your final plan is in your portal. Your first month is credited toward the build. [Book your build call]
 
-**Results Tracking — canceled (win-back, day 14).** Subject: *Still saving those hours?*
-> Want to check the numbers are holding? Turn Results Tracking back on any time from your portal.
+**Subscription ended (win-back, day 14).** Subject: *Still saving those hours?*
+> Want to check the numbers are holding? Restart your subscription any time from your portal. Same key, all your history.

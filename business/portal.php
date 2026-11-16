@@ -103,7 +103,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('home', 'Please sign in.', 'error');
     }
     if (!$active) {
-        go('home', 'Your audit has ended. Turn on Results Tracking to keep going.', 'error');
+        go('home', 'Your subscription has ended. Restart it on the Home page to keep going.', 'error');
     }
     $lid = (int) $license['id'];
 
@@ -355,7 +355,6 @@ $devices    = list_devices($lid);
 $aiReport   = latest_report($lid, 'ai');
 $finalPlan  = latest_report($lid, 'final');
 $monitoring = license_monitoring($license);
-$monCfg     = (array) cfg('monitoring');
 $company    = $profile['company'] ?: ($license['company'] ?: 'your business');
 $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
@@ -381,8 +380,8 @@ echo '</nav>';
 $showFlash();
 
 if (!$active) {
-    echo '<div class="note">Your audit has ended. Everything is still here to read. To keep auditing, turn on <b>'
-        . h((string) $monCfg['name']) . '</b> on the Home page.</div>';
+    echo '<div class="note">Your subscription has ended. Everything is still here to read. To keep auditing, '
+        . '<b>restart your subscription</b> on the Home page.</div>';
 }
 
 function field_html(string $key, array $profile, string $dis): string
@@ -458,7 +457,7 @@ if ($page === 'home'):
       <span class="<?= $j['done'] ? 'done' : (!empty($j['now']) ? 'now' : '') ?>"><?= $j['done'] ? '✓ ' : '' ?><?= h($j['label']) ?></span>
     <?php endforeach; ?>
   </nav>
-  <p class="lead"><?= h(plan_name($license)) ?> · <?= $monitoring ? 'Results Tracking is on' : 'open until ' . h(format_date($license['access_until'])) ?></p>
+  <p class="lead"><?= h(plan_name($license)) ?> · <?= $monitoring ? h(monitoring_tier($license)['price_label']) . ', renews monthly' : ($active ? 'open until ' . h(format_date($license['access_until'])) : 'subscription ended') ?></p>
   <?php
     $daysLeft = $license['access_until'] ? (int) ceil((strtotime((string) $license['access_until']) - time()) / 86400) : 0;
     if ($active && !$monitoring && $daysLeft <= 7):
@@ -479,17 +478,18 @@ if ($page === 'home'):
 
   <section class="card">
     <h2>Want us to build it for you?</h2>
-    <p class="muted">We build the AI agents in your plan. Your audit price is credited toward the build.</p>
+    <p class="muted">We build the AI agents in your plan. Your first month is credited toward the build.</p>
     <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call →</a>
   </section>
 
   <section class="card">
-    <h2><?= h((string) $monCfg['name']) ?> <span class="badge"><?= h(monitoring_tier($license)['price_label']) ?></span></h2>
+    <h2>Your subscription <span class="badge"><?= h(monitoring_tier($license)['price_label']) ?></span></h2>
     <?php if ($monitoring): ?>
-      <p class="muted">On. Ask your team to send in their audits each month. See the results on the <a href="<?= h(portal_url('numbers')) ?>">Numbers</a> page.</p>
+      <p class="muted">On. Each month, ask your team to send in their audits<?= !empty($crm['stats']) ? ' and press <b>Check again</b> on your CRM numbers' : '' ?>.
+        See what improved on the <a href="<?= h(portal_url('numbers')) ?>">Numbers</a> page. Change or cancel under <b>Billing &amp; invoices</b>.</p>
     <?php else: ?>
-      <p class="muted">After your agents are built, keep auditing every month and see what improved. Cancel any time.</p>
-      <form method="post" action="monitor.php"><?= csrf_field() ?><button class="btn" type="submit">Turn on <?= h((string) $monCfg['name']) ?></button></form>
+      <p class="muted">Restart any time with the same key. Your history is still here, so Before → Now picks up where you left off.</p>
+      <form method="post" action="monitor.php"><?= csrf_field() ?><button class="btn primary" type="submit">Restart my subscription</button></form>
     <?php endif; ?>
   </section>
 
@@ -839,7 +839,7 @@ elseif ($page === 'report'):
       <?php endif; ?>
       <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call to build these agents →</a>
     </div>
-    <p class="muted small">If we build your agents, your audit price is credited toward the build.</p>
+    <p class="muted small">If we build your agents, your first month is credited toward the build.</p>
   </section>
 
   <?php if ($audits && !ai_reports_enabled()): ?>

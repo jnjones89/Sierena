@@ -10,9 +10,7 @@ $plans    = (array) cfg('plans');
 if (!isset($plans[$selected])) {
     $selected = (string) array_key_first($plans);
 }
-$monitoring = (array) cfg('monitoring');
 $industry   = (string) ($_GET['industry'] ?? '');
-$days       = (int) cfg('audit_access_days');
 
 render_header('Team Audit');
 ?>
@@ -39,21 +37,22 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
         <input type="radio" name="plan" value="<?= h($key) ?>" <?= $key === $selected ? 'checked' : '' ?>>
         <h2><?= h($plan['name']) ?> <span class="price"><?= h($plan['price_label']) ?></span></h2>
         <?php if (!empty($plan['solo'])): ?>
-          <p class="muted small">One-time payment · just you</p>
+          <p class="muted small">Monthly · cancel any time · just you</p>
           <ul>
             <li>No 5-hour limit: audit your whole week</li>
             <li>Back-Office Check for your industry</li>
             <li>Your tools and what they really cost</li>
             <li><?= h(report_bullet($plan)) ?></li>
             <li>Your free audit hours carry over</li>
+            <li>Month-by-month progress, Before → Now</li>
           </ul>
         <?php else: ?>
-          <p class="muted small">One-time payment · up to <?= (int) $plan['people'] ?> people</p>
+          <p class="muted small">Monthly · cancel any time · up to <?= (int) $plan['people'] ?> people</p>
           <ul>
             <li>Browser audit for up to <?= (int) $plan['people'] ?> people</li>
             <li>Back-Office Check for your industry</li>
             <li><?= h(report_bullet($plan)) ?></li>
-            <li><?= $days ?> days to run the audit</li>
+            <li>Month-by-month progress, Before → Now</li>
           </ul>
         <?php endif; ?>
       </label>
@@ -71,7 +70,7 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
     <button class="btn primary block" type="submit">Continue to secure checkout →</button>
     <p class="guarantee"><b>Money-back guarantee.</b> <?= h(guarantee_text()) ?></p>
     <p class="muted small">You'll pay on Stripe. Your team key appears right after payment and is emailed to you.
-      If we build your agents, the audit price is credited toward the build.</p>
+      Cancel any time from your Business Portal. If we build your agents, your first month is credited toward the build.</p>
   </section>
 </form>
 
@@ -81,7 +80,8 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
     <li><b>Browser audit</b> — each person runs the private, read-only extension for a few days.</li>
     <li><b>Back-Office Check</b> — your processes and SOPs, follow-up, contracts, compliance and data security, set up the way <?= h((string) cfg('brand_name')) ?> would set up your back office.</li>
     <li><b><?= ai_reports_enabled() ? 'Instant AI report' : 'Your report' ?></b> — your bottlenecks, the AI agents you need, a step-by-step fix and what it is costing you.</li>
-    <li><b>Final plan from our team</b> — reviewed by a person, with the SOPs to write first. If we build your agents, the audit price is credited toward the build.</li>
+    <li><b>Final plan from our team</b> — reviewed by a person, with the SOPs to write first. If we build your agents, your first month is credited toward the build.</li>
+    <li><b>Every month after</b> — keep auditing and see what improved: hours, repeated tasks and, if you connect GoHighLevel, your real numbers Before → Now.</li>
   </ul>
   <h3>Every industry is checked differently</h3>
   <div class="grid industry-grid">
@@ -96,12 +96,10 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
 </section>
 
 <section class="card">
-  <h2>After the audit: <?= h((string) $monitoring['name']) ?> <span class="badge"><?= h(monitoring_from_label()) ?></span></h2>
-  <p class="muted">Optional. Keep the audit running every month after your agents are built, and see what improved:
-    hours tracked, repeated tasks per hour and tab-jumping, month by month. Turn it on from your Business Portal; cancel any time.</p>
-  <?php $mt = (array) (cfg('monitoring')['tiers'] ?? []); if (count($mt) > 1): ?>
-    <p class="muted small"><?= h(implode(' · ', array_map(fn($t) => ((int) $t['up_to'] === 1 ? 'Solo' : 'Up to ' . (int) $t['up_to'] . ' people') . ': ' . $t['price_label'], $mt))) ?></p>
-  <?php endif; ?>
+  <h2>Stay as long as it helps</h2>
+  <p class="muted">Your plan is monthly. The first month finds the problems and gives you the plan. After that, keep auditing every month
+    and see what improved: hours tracked, repeated tasks, tab-jumping and, if you connect GoHighLevel, your reply speed, show rate
+    and close rate, Before → Now. Cancel any time from your Business Portal.</p>
 </section>
 
 <section class="card">

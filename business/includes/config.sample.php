@@ -13,33 +13,22 @@ return [
     'site_url'   => 'https://sirenaflow.com/business',
     'brand_name' => 'SirenaFlow',
 
-    // ---- One-time audits: Solo, then Team sizes ----
-    // Create one ONE-TIME price per plan in Stripe (Product catalog) and paste its Price ID.
+    // ---- Plans: all monthly subscriptions (cancel any time) ----
+    // Create one RECURRING monthly price per plan in Stripe (Product catalog) and paste its Price ID.
     // "people" = how many computers can use the key. "solo" = one-person wording in the portal.
     // "final_plan" = whether a final plan written by your team is included (default true).
+    // Access lasts while the subscription is active; canceling ends it at the end of the paid month.
     'plans' => [
-        'solo'    => ['name' => 'Solo Audit',         'people' => 1,  'price_label' => '$97',  'stripe_price_id' => 'price_REPLACE_ME', 'solo' => true, 'final_plan' => false],
-        'starter' => ['name' => 'Starter Team Audit', 'people' => 5,  'price_label' => '$397',   'stripe_price_id' => 'price_REPLACE_ME'],
-        'team'    => ['name' => 'Team Audit',         'people' => 15, 'price_label' => '$797',   'stripe_price_id' => 'price_REPLACE_ME'],
-        'company' => ['name' => 'Company Audit',      'people' => 50, 'price_label' => '$1,497', 'stripe_price_id' => 'price_REPLACE_ME'],
+        'solo'    => ['name' => 'Solo Audit',         'people' => 1,  'price_label' => '$97 / month',  'stripe_price_id' => 'price_REPLACE_ME', 'solo' => true, 'final_plan' => false],
+        'starter' => ['name' => 'Starter Team Audit', 'people' => 5,  'price_label' => '$197 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
+        'team'    => ['name' => 'Team Audit',         'people' => 15, 'price_label' => '$397 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
+        'company' => ['name' => 'Company Audit',      'people' => 50, 'price_label' => '$697 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
     ],
-    // How long a one-time audit stays open for tracking, syncing and the portal.
-    'audit_access_days' => 30,
-
-    // ---- Optional monthly Results Tracking (after the audit), priced by team size ----
-    // Create one RECURRING monthly price per tier in Stripe and paste each Price ID.
-    // A customer gets the first tier whose "up_to" covers their seats.
-    'monitoring' => [
-        'name'  => 'Results Tracking',
-        'tiers' => [
-            ['up_to' => 1,  'price_label' => '$97 / month',  'stripe_price_id' => 'price_REPLACE_ME'],
-            ['up_to' => 15, 'price_label' => '$197 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
-            ['up_to' => 50, 'price_label' => '$297 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
-        ],
-    ],
+    // Days of access given at checkout, as a safety net until Stripe's subscription events arrive.
+    'audit_access_days' => 31,
 
     // Shown on the pricing page, success page and Help. Customers request refunds from Help in the portal.
-    'guarantee' => 'Not happy with your audit? Ask for your money back within 30 days. No questions asked.',
+    'guarantee' => 'Not happy with your first month? Ask for your money back within 30 days. No questions asked.',
 
     // Where customers book a call to have the agents built (Calendly, GoHighLevel, etc.).
     'booking_url' => 'https://sirenaflow.com/#contact',
@@ -59,8 +48,7 @@ return [
     'anthropic_effort'  => 'high',
     // Limits on instant AI reports (only paying customers can generate them; free users never use Claude).
     'reports_per_day'      => 5,   // per customer, per day
-    'reports_per_purchase' => 10,  // total for one Solo/Team Audit purchase
-    'reports_per_month'    => 5,   // while Results Tracking is on (rolling 30 days)
+    'reports_per_month'    => 5,   // per subscriber, rolling 30 days
 
     // ---- GoHighLevel (optional) ----
     // Each destination is a sub-account with its own Private Integration token

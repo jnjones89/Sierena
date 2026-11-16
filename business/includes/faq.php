@@ -17,6 +17,8 @@ $faq = [
         'The extension only sees websites. Add desktop apps (like QuickBooks Desktop or your phone system) on the "Your tools" page so they count in your report.',
     'Is my data shared or sold?' =>
         'No. It is only used for your audit and your report.',
+    'How does billing work?' =>
+        'Solo and Team Audits are monthly. Cancel any time under "Billing & invoices" in your Business Portal. Your key keeps working until the end of the month you paid for.',
     'Can I get my money back?' => guarantee_text(),
     'How do I delete my data?' =>
         'In the Business Portal, open Help, then "Your data". You can download everything or delete it.',

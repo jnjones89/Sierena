@@ -1,6 +1,6 @@
 <?php
 /*
- * Creates a Stripe Checkout Session for a one-time Team Audit and sends the
+ * Creates a Stripe Checkout Session for a monthly subscription (Solo or Team) and sends the
  * buyer to Stripe's hosted payment page.
  */
 declare(strict_types=1);
@@ -32,10 +32,9 @@ if (!rate_limit('checkout', 20, 3600)) {
 
 try {
     $session = stripe_request('POST', 'checkout/sessions', [
-        'mode'                       => 'payment',
+        'mode'                       => 'subscription',
         'line_items'                 => [['price' => (string) $plan['stripe_price_id'], 'quantity' => 1]],
         'customer_email'             => $email,
-        'customer_creation'          => 'always',
         'allow_promotion_codes'      => 'true',
         'billing_address_collection' => 'auto',
         'metadata'                   => [
@@ -43,6 +42,7 @@ try {
             'plan'    => $planKey,
             'company' => mb_substr($company, 0, 200),
         ],
+        'subscription_data'          => ['metadata' => ['kind' => 'audit', 'plan' => $planKey]],
         'success_url' => site_url('success.php') . '?session_id={CHECKOUT_SESSION_ID}',
         'cancel_url'  => site_url('?canceled=1'),
     ]);

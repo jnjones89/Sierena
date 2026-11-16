@@ -524,40 +524,17 @@ function plan_includes_final_plan(array $license): bool
 
 function guarantee_text(): string
 {
-    return (string) cfg_opt('guarantee', 'Not happy with your audit? Ask for your money back within 30 days. No questions asked.');
+    return (string) cfg_opt('guarantee', 'Not happy with your first month? Ask for your money back within 30 days. No questions asked.');
 }
 
 /**
- * Results Tracking price for a customer, by team size.
- * Supports the older single-price config ('price_label' + 'stripe_price_id') too.
+ * The monthly price of this customer's plan (used to restart a canceled subscription).
  * @return array{price_label:string,stripe_price_id:string}
  */
 function monitoring_tier(?array $license = null): array
 {
-    $m = (array) cfg('monitoring');
-    if (empty($m['tiers'])) {
-        return ['price_label' => (string) ($m['price_label'] ?? ''), 'stripe_price_id' => (string) ($m['stripe_price_id'] ?? '')];
-    }
-    $tiers = $m['tiers'];
-    usort($tiers, fn($x, $y) => (int) $x['up_to'] <=> (int) $y['up_to']);
-    $seats = $license ? (int) $license['seats'] : 1;
-    foreach ($tiers as $t) {
-        if ($seats <= (int) $t['up_to']) {
-            return $t;
-        }
-    }
-    return end($tiers);
-}
-
-/** "from $97 / month" style label for the pricing page. */
-function monitoring_from_label(): string
-{
-    $m = (array) cfg('monitoring');
-    if (empty($m['tiers'])) {
-        return (string) ($m['price_label'] ?? '');
-    }
-    $labels = array_map(fn($t) => (string) $t['price_label'], $m['tiers']);
-    return count($labels) > 1 ? 'from ' . $labels[0] : $labels[0];
+    $info = $license ? plan_info((string) $license['plan']) : null;
+    return ['price_label' => (string) ($info['price_label'] ?? ''), 'stripe_price_id' => (string) ($info['stripe_price_id'] ?? '')];
 }
 
 function license_monitoring(array $license): bool
@@ -584,7 +561,7 @@ function license_inactive_reason(?array $license): string
     if ($license['status'] !== 'active') {
         return 'This license has been turned off. Contact us for help.';
     }
-    return 'Your audit window has ended. Turn on Results Tracking in your Business Portal to keep going.';
+    return 'Your subscription has ended. Restart it in your Business Portal to keep going.';
 }
 
 function format_date(?string $iso): string
@@ -593,8 +570,8 @@ function format_date(?string $iso): string
 }
 
 /**
- * Fulfill a paid Checkout Session (a Team Audit purchase or a Results Tracking
- * subscription). Idempotent — safe to call from both the success page and the webhook.
+ * Fulfill a paid Checkout Session: a new monthly subscription (creates the key), or a restarted
+ * subscription for an existing key. Idempotent — safe to call from both the success page and the webhook.
  */
 function fulfill_checkout_session(array $session): ?array
 {
@@ -623,14 +600,17 @@ function fulfill_checkout_session(array $session): ?array
     $email       = (string) ($session['customer_details']['email'] ?? $session['customer_email'] ?? '');
     $company     = mb_substr((string) ($session['metadata']['company'] ?? ''), 0, 255);
     $now         = now_iso();
-    $accessUntil = gmdate('Y-m-d\TH:i:s\Z', time() + 86400 * (int) cfg('audit_access_days'));
+    // Access follows the Stripe subscription. access_until covers the first month in case a webhook is late.
+    $accessUntil = gmdate('Y-m-d\TH:i:s\Z', time() + 86400 * (int) cfg_opt('audit_access_days', 31));
+    $subscription = is_string($session['subscription'] ?? null) ? $session['subscription'] : null;
 
     for ($attempt = 0; $attempt < 5; $attempt++) {
         $key = generate_license_key();
         try {
             $pdo->prepare('INSERT INTO licenses
-                (license_key, email, company, status, stripe_session_id, stripe_customer_id, plan, seats, access_until, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+                (license_key, email, company, status, stripe_session_id, stripe_customer_id, plan, seats, access_until,
+                 monitor_status, monitor_subscription_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                 ->execute([
                     $key,
                     strtolower($email),
@@ -641,6 +621,8 @@ function fulfill_checkout_session(array $session): ?array
                     $planKey,
                     (int) $plan['people'],
                     $accessUntil,
+                    $subscription ? 'active' : 'none',
+                    $subscription,
                     $now,
                     $now,
                 ]);
@@ -687,8 +669,8 @@ function fulfill_monitoring_session(array $session): ?array
     ghl_event('results_tracking_on', ghl_license_contact($license), ghl_license_fields($license));
     send_mail(
         (string) cfg('owner_email'),
-        'Results Tracking started: ' . ($license['company'] ?: $license['email']),
-        "{$license['company']} ({$license['email']}) turned on monthly Results Tracking.\n\nAdmin: "
+        'Subscription restarted: ' . ($license['company'] ?: $license['email']),
+        "{$license['company']} ({$license['email']}) restarted their monthly subscription.\n\nAdmin: "
         . site_url('admin.php?view=' . (int) $license['id']) . "\n"
     );
     return find_license_by_id((int) $license['id']);
@@ -698,13 +680,13 @@ function notify_new_license(array $license): void
 {
     $brand = (string) cfg('brand_name');
     $plan  = plan_name($license);
-    $until = format_date($license['access_until']);
+    $price = (string) (plan_info((string) $license['plan'])['price_label'] ?? '');
     send_mail(
         $license['email'],
         "Your $brand $plan key",
-        "Thanks for purchasing the $plan.\n\n"
+        "Thanks for subscribing to the $plan ($price, cancel any time).\n\n"
         . "Your team key:\n\n    {$license['license_key']}\n\n"
-        . ((int) $license['seats'] === 1 ? "It works on one computer until $until.\n\n" : "It works for up to {$license['seats']} people until $until.\n\n")
+        . ((int) $license['seats'] === 1 ? "It works on one computer while your subscription is active.\n\n" : "It works for up to {$license['seats']} people while your subscription is active.\n\n")
         . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a team key?\", pastes this key and turns tracking on.\n"
         . "2. Everyone works normally for a few days, then clicks \"Send to my Business Portal\".\n"
         . "3. Sign in to your Business Portal with this email and key. Fill in your business profile and the Back-Office Check,\n"
@@ -716,13 +698,13 @@ function notify_new_license(array $license): void
         (string) cfg('owner_email'),
         "New $plan: " . ($license['company'] ?: $license['email']),
         "New purchase.\n\nPlan: $plan ({$license['seats']} people)\nCompany: {$license['company']}\n"
-        . "Email: {$license['email']}\nAccess until: $until\n\nAdmin: " . site_url('admin.php?view=' . (int) $license['id']) . "\n"
+        . "Email: {$license['email']}\nBilling: $price\n\nAdmin: " . site_url('admin.php?view=' . (int) $license['id']) . "\n"
     );
     ghl_event('team_audit_purchased', ['email' => $license['email'], 'companyName' => $license['company']],
         ghl_license_fields($license), ['swa-plan-' . $license['plan']]);
 }
 
-/** Keep Results Tracking in sync with its Stripe subscription. */
+/** Keep access in sync with the customer's Stripe subscription. */
 function sync_subscription_status(array $subscription): void
 {
     if (empty($subscription['id'])) {
@@ -734,6 +716,10 @@ function sync_subscription_status(array $subscription): void
     $before = $find->fetch() ?: null;
     db()->prepare('UPDATE licenses SET monitor_status = ?, updated_at = ? WHERE monitor_subscription_id = ?')
         ->execute([$active ? 'active' : 'canceled', now_iso(), $subscription['id']]);
+    if (!$active && $before && (string) $before['access_until'] > now_iso()) {
+        // The subscription is over (Stripe ends it at the end of the paid month): access ends now.
+        db()->prepare('UPDATE licenses SET access_until = ? WHERE id = ?')->execute([now_iso(), (int) $before['id']]);
+    }
     if ($before && !$active && $before['monitor_status'] === 'active') {
         ghl_event('results_tracking_canceled', ghl_license_contact($before), ghl_license_fields($before));
     }
@@ -1305,8 +1291,8 @@ function save_report(int $licenseId, string $kind, string $content, string $mode
 
 /**
  * How many more instant AI reports this customer can generate.
- * One purchase includes 'reports_per_purchase' (default 10). With Results Tracking on,
- * they get 'reports_per_month' (default 5) per rolling 30 days instead. The daily cap applies on top.
+ * Subscribers get 'reports_per_month' (default 5) per rolling 30 days. Older one-time keys
+ * get 'reports_per_purchase' (default 10) in total. The daily cap applies on top.
  */
 function reports_left(array $license): int
 {
@@ -1482,7 +1468,7 @@ function render_markdown(string $md): string
 }
 
 /* ------------------------------------------------------------------ */
-/* Results Tracking: month-by-month progress                           */
+/* Month-by-month progress                                             */
 /* ------------------------------------------------------------------ */
 
 function progress_by_month(array $audits): array
@@ -1906,7 +1892,6 @@ function journey(array $license, bool $hasAudits, bool $hasAi, bool $hasFinal): 
     $steps[] = ['label' => 'Build call', 'done' => $at >= 1];
     $steps[] = ['label' => 'Build', 'done' => $at >= 3];
     $steps[] = ['label' => 'Go-Live check', 'done' => $at >= 4];
-    $steps[] = ['label' => 'Results Tracking', 'done' => license_monitoring($license)];
     // The first step not done is "now".
     foreach ($steps as $i => $st) {
         if (!$st['done']) {

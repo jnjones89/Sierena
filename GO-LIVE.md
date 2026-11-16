@@ -12,11 +12,10 @@ with the extension already pointing at your server.
 
 ## 1. Stripe, in test mode first (30 minutes)
 See `business/README.md` → Setup → 1. Stripe.
-- [ ] Product "Workflow Shadow Audit" with 4 one-time prices: Solo $97, Starter $397, Team $797, Company $1,497
-- [ ] Product "Results Tracking" with 3 monthly prices: $97, $197, $297
+- [ ] Product "Workflow Shadow Audit" with 4 **recurring monthly** prices: Solo $97, Starter $197, Team $397, Company $697
 - [ ] Webhook to `https://sirenaflow.com/business/webhook.php` with the 4 events listed in the README
-- [ ] Customer portal turned on
-- [ ] Copy: secret key, webhook signing secret, 7 Price IDs
+- [ ] Customer portal turned on, with cancel allowed
+- [ ] Copy: secret key, webhook signing secret, 4 Price IDs
 
 ## 2. Hostinger (30 minutes)
 See `business/README.md` → Setup → 3. Hostinger.
@@ -24,7 +23,7 @@ See `business/README.md` → Setup → 3. Hostinger.
 - [ ] Mailbox `audit@sirenaflow.com`
 - [ ] Upload `dist/business-<version>.zip` to `public_html` and Extract → `public_html/business/`
 - [ ] Copy `business/includes/config.sample.php` to `swa-config.php` **one level above** `public_html`, and fill it in:
-  - Stripe keys and the 7 Price IDs
+  - Stripe keys and the 4 Price IDs
   - Database, `mail_from`, `owner_email`, `booking_url`
   - `admin_password`: a long random password
   - `data_key`: a long random string (encrypts clients' CRM tokens; never change it after launch)
@@ -39,7 +38,7 @@ See `business/README.md` → Setup → 3. Hostinger.
 - [ ] Portal: business profile, tools, questions, Client journey (all 7 stations), report
 - [ ] **CRM check on your own account:** connect Sirena Flow's GoHighLevel from the Client journey page with a read-only token. You'll see your own real numbers, and it confirms the connection works.
 - [ ] `admin.php`: the customer, handoff tests, publish a final plan
-- [ ] Refund request from Help; Results Tracking subscribe and cancel
+- [ ] Refund request from Help; cancel the subscription in Stripe → portal shows **Restart my subscription**
 
 ## 4. GoHighLevel (1–2 hours)
 See `business/GHL-SETUP.md`.
@@ -53,7 +52,7 @@ See `business/GHL-SETUP.md`.
       - SF Tag | Inbound Lead
       - SF Internal Warm Lead Nurture
       If one starts on new contacts, add the filter "Tags does not contain swa-free-audit" (or decide you want audit leads in it).
-- [x] The 12 SWA emails are created: Marketing → Emails → Templates → folder **Workflow Shadow Audit** (SWA 01 – SWA 12).
+- [x] The SWA emails are created: Marketing → Emails → Templates → folder **Workflow Shadow Audit** (SWA 01 – SWA 12).
       Set the From name and From email on each, and send yourself a test.
 - [ ] Build the 9 SWA workflows from `GHL-SETUP.md` (they start on the `swa-…` tags) and pick the matching SWA template in each email step
 - [ ] ALJA: token → `ghl.alja.api_token`, then `admin.php` → GoHighLevel → **Create GHL fields**
