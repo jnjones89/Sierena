@@ -10,6 +10,10 @@ Everything goes into **Sirena Flow**. **ALJA Solutions** only receives build-rea
 2. Paste the tokens into `ghl` in your config file (`sirena` and, if you want the handoff, `alja`).
 3. Open `/business/admin.php` → **GoHighLevel** → **Create GHL fields**. This adds the SWA fields
    (SWA Plan, SWA Industry, SWA Bottleneck, SWA Recommended Agent, SWA Audit Ends, SWA Portal Link, …).
+   **Sirena Flow: done.** All 14 SWA fields were created on 2026-11-16 (the button will find them and skip).
+   ALJA Solutions still needs the button once its token is in the config.
+   Note: GHL gave three fields its own merge keys: `{{contact.swa_back_office_score}}`,
+   `{{contact.swa_recommend_score}}`, `{{contact.swa_accuracy_rating}}`. The server matches fields by name, so this is fine.
 4. Every send shows on the admin page as **Sent** or **Failed**, with the reason.
 
 Merge fields in emails: `{{contact.swa_bottleneck}}`, `{{contact.swa_recommended_agent}}`,
