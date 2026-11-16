@@ -522,9 +522,10 @@ function plan_includes_final_plan(array $license): bool
     return (bool) ($info['final_plan'] ?? true);
 }
 
-function guarantee_text(): string
+/** Billing terms shown at checkout, on the success page and in Help. No refunds. */
+function billing_terms_text(): string
 {
-    return (string) cfg_opt('guarantee', 'Not happy with your first month? Ask for your money back within 30 days. No questions asked.');
+    return (string) cfg_opt('billing_terms', 'All payments are final. Cancel any time to stop future charges. Your access continues until the end of the month you paid for.');
 }
 
 /**
@@ -1923,7 +1924,7 @@ function export_customer_data(array $license): array
     ];
 }
 
-/** Deletes the company's audit data. Keeps only the purchase record (needed for receipts and refunds). */
+/** Deletes the company's audit data. Keeps only the purchase record (needed for receipts and billing). */
 function delete_customer_data(array $license): void
 {
     $lid = (int) $license['id'];

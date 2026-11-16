@@ -37,9 +37,9 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 - Portal: **Get my instant AI report** · **Save** · **Copy message** (team invite) · **Restart my subscription** (only after canceling) · **Book a call to build these agents →**
 - Team invite page: **Join [company]'s Team Audit** → Add the extension · Paste your team key · Turn tracking on
 
-## Guarantee (always the same, set in config)
-*Not happy with your first month? Ask for your money back within 30 days. No questions asked.*
-Customers request it from Help in the Business Portal. You refund in Stripe.
+## Billing terms (always the same, set in config)
+*All payments are final. Cancel any time to stop future charges. Your access continues until the end of the month you paid for.*
+Never promise a refund or a money-back guarantee. Buyers agree to this with a checkbox before checkout.
 
 ## Survey (same three questions everywhere)
 1. Did this find something real? Spot on / Partly / Not really

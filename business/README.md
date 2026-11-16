@@ -88,9 +88,9 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
   see connected browsers, profile, team data and month-by-month progress.
 - Free audit leads.
 
-## Solo Audit, guarantee, survey
+## Solo Audit, billing terms, survey
 - **Solo Audit** (plan `solo` in config): one computer, no time limit, free-audit hours carry over. The portal hides team pages.
-- **Guarantee:** set `guarantee` in config. Customers ask from Help in the portal; you get an email and refund in Stripe.
+- **No refunds:** all payments are final (`billing_terms` in config). Buyers tick a box agreeing to this before checkout. Customers cancel any time from **Billing & invoices**; access lasts until the end of the paid month.
 - **Survey:** three questions after the free results (extension), after a team member sends (extension), and after the owner's report (portal). Answers and the "Is the audit doing its job?" scoreboard are on `admin.php`.
 
 ## Client journey (7 stations) and handoff tests

@@ -34,7 +34,6 @@ Add **Goal: tag `swa-team-audit-purchased` added** to the free-audit workflow so
 | 6 | `swa-final-plan-sent` | Email "Book your build call" → wait 2 days → reminder → wait 3 days → last reminder (stop when appointment booked) |
 | 7 | `swa-results-tracking-on` (subscription restarted) | "Welcome back" email |
 | 8 | `swa-results-tracking-canceled` (subscription ended) | Internal notification → wait 14 days → win-back email |
-| 9 | `swa-refund-requested` | Internal notification + task "Refund in Stripe and reply" |
 
 Optional segments: `swa-plan-solo`, `swa-plan-starter`, `swa-plan-team`, `swa-plan-company`, `swa-industry-<industry>`.
 
@@ -57,7 +56,7 @@ Set the From name and From email on each. The drafts below are the same text, fo
 
 **Free audit 3 — day 5.** Subject: *Is it just you, or the whole team?*
 > If your team does the same work, the savings multiply. A Team Audit covers everyone, checks your back office
-> for your industry, and ends with a plan from our team. Money-back guarantee. [See Team Audits]
+> for your industry, and ends with a plan from our team. Monthly, cancel any time. [See Team Audits]
 
 **Free audit 4 — day 9.** Subject: *Want us to just fix it?*
 > We build the AI agents too. If you'd like the {{contact.swa_recommended_agent}} set up for you, grab a time. [Book a call]

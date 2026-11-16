@@ -27,8 +27,8 @@ return [
     // Days of access given at checkout, as a safety net until Stripe's subscription events arrive.
     'audit_access_days' => 31,
 
-    // Shown on the pricing page, success page and Help. Customers request refunds from Help in the portal.
-    'guarantee' => 'Not happy with your first month? Ask for your money back within 30 days. No questions asked.',
+    // Billing terms shown on the pricing page (buyers must tick a box to agree), the success page and Help.
+    'billing_terms' => 'All payments are final. Cancel any time to stop future charges. Your access continues until the end of the month you paid for.',
 
     // Where customers book a call to have the agents built (Calendly, GoHighLevel, etc.).
     'booking_url' => 'https://sirenaflow.com/#contact',
@@ -56,7 +56,7 @@ return [
     // 'events' => 'all', or a list. Leave a token empty to switch that destination off.
     // Events (tags): free_audit (swa-free-audit), team_audit_purchased (swa-team-audit-purchased + swa-plan-<plan>),
     // first_audit_received, instant_report_ready, final_plan_sent, results_tracking_on/_canceled,
-    // wants_help, refund_requested, profile_updated (fields only, no tag).
+    // wants_help, profile_updated (fields only, no tag).
     'ghl' => [
         'sirena' => ['api_token' => '', 'location_id' => 'sR58k68dGcC4kxfeJudZ', 'events' => 'all'],
         'alja'   => ['api_token' => '', 'location_id' => 'xAlVOKt0OfFGc5f5WPAh', 'events' => ['instant_report_ready', 'final_plan_sent', 'wants_help']],

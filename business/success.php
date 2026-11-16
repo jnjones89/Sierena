@@ -55,7 +55,7 @@ render_header('Payment confirmed');
     </ol>
     <a class="btn primary" href="portal.php">Open Business Portal →</a>
   </section>
-  <p class="muted small"><b>Money-back guarantee.</b> <?= h(guarantee_text()) ?></p>
+  <p class="muted small"><b>Billing.</b> <?= h(billing_terms_text()) ?></p>
 <?php elseif ($pending): ?>
   <h1>Payment processing…</h1>
   <p class="lead">Stripe hasn't confirmed your payment yet (this can take a few minutes for some payment methods). Your key will be emailed as soon as it clears, or refresh this page.</p>

@@ -11,6 +11,7 @@ if (!isset($plans[$selected])) {
     $selected = (string) array_key_first($plans);
 }
 $industry   = (string) ($_GET['industry'] ?? '');
+$extUrl     = (string) cfg_opt('extension_url', '');
 
 render_header('Team Audit');
 ?>
@@ -21,6 +22,11 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
   <span><b>Read-only.</b> Nothing on your computers is changed.</span>
   <span><b>Never sees</b> emails, files, passwords or typing.</span>
   <span><b>Remove it any time</b> in one click.</span>
+</div>
+
+<div class="free-cta">
+  <span><b>Not ready to pay?</b> Start with the free audit: one person, 5 hours, no card.</span>
+  <a class="btn small" href="#free">Try it free ↓</a>
 </div>
 
 <?php if ($canceled): ?>
@@ -67,8 +73,10 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
     <label>Company name
       <input type="text" name="company" required maxlength="200" placeholder="Acme Inc.">
     </label>
+    <label class="agree"><input type="checkbox" name="agree_terms" value="1" required>
+      <span>I understand that <b>all payments are final</b>. I can cancel any time to stop future charges.</span></label>
     <button class="btn primary block" type="submit">Continue to secure checkout →</button>
-    <p class="guarantee"><b>Money-back guarantee.</b> <?= h(guarantee_text()) ?></p>
+    <p class="muted small"><?= h(billing_terms_text()) ?></p>
     <p class="muted small">You'll pay on Stripe. Your team key appears right after payment and is emailed to you.
       Cancel any time from your Business Portal. If we build your agents, your first month is credited toward the build.</p>
   </section>
@@ -102,10 +110,15 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
     and close rate, Before → Now. Cancel any time from your Business Portal.</p>
 </section>
 
-<section class="card">
-  <h2>Not ready to buy? Run a free audit</h2>
-  <p class="muted">The free Chrome extension runs one 5-hour audit and shows your #1 repetitive task, the AI agent that can do it,
-    and a step-by-step fix.</p>
+<section class="card" id="free">
+  <h2>Free audit</h2>
+  <p class="muted">Add the free Workflow Shadow Audit extension to Chrome and work like normal. After 5 hours of work it shows the task
+    you repeat most, the AI agent that can do it for you, and a simple step-by-step fix. No card, no account. Private and read-only.</p>
+  <?php if ($extUrl !== ''): ?>
+    <a class="btn primary" href="<?= h($extUrl) ?>" target="_blank" rel="noopener">Add to Chrome, free</a>
+  <?php else: ?>
+    <p class="muted small"><b>Coming soon to the Chrome Web Store.</b> Want early access? <a href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Contact us</a>.</p>
+  <?php endif; ?>
 </section>
 
 <p class="muted small">Already a customer? <a href="portal.php">Sign in to your Business Portal</a>.</p>

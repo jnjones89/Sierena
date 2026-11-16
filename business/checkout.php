@@ -26,6 +26,9 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 if ($company === '' || mb_strlen($company) > 200) {
     $back('Please enter your company name.');
 }
+if (($_POST['agree_terms'] ?? '') !== '1') {
+    $back('Please confirm that you understand all payments are final.');
+}
 if (!rate_limit('checkout', 20, 3600)) {
     $back('Too many attempts. Please wait a few minutes and try again.');
 }

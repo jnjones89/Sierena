@@ -38,7 +38,7 @@ See `business/README.md` → Setup → 3. Hostinger.
 - [ ] Portal: business profile, tools, questions, Client journey (all 7 stations), report
 - [ ] **CRM check on your own account:** connect Sirena Flow's GoHighLevel from the Client journey page with a read-only token. You'll see your own real numbers, and it confirms the connection works.
 - [ ] `admin.php`: the customer, handoff tests, publish a final plan
-- [ ] Refund request from Help; cancel the subscription in Stripe → portal shows **Restart my subscription**
+- [ ] Checkout requires ticking "all payments are final"; cancel the subscription in Stripe → portal shows **Restart my subscription**
 
 ## 4. GoHighLevel (1–2 hours)
 See `business/GHL-SETUP.md`.
@@ -54,7 +54,7 @@ See `business/GHL-SETUP.md`.
       If one starts on new contacts, add the filter "Tags does not contain swa-free-audit" (or decide you want audit leads in it).
 - [x] The SWA emails are created: Marketing → Emails → Templates → folder **Workflow Shadow Audit** (SWA 01 – SWA 12).
       Set the From name and From email on each, and send yourself a test.
-- [ ] Build the 9 SWA workflows from `GHL-SETUP.md` (they start on the `swa-…` tags) and pick the matching SWA template in each email step
+- [ ] Build the 8 SWA workflows from `GHL-SETUP.md` (they start on the `swa-…` tags) and pick the matching SWA template in each email step
 - [ ] ALJA: token → `ghl.alja.api_token`, then `admin.php` → GoHighLevel → **Create GHL fields**
 
 ## 5. Chrome Web Store (1 hour, then review)

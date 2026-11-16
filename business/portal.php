@@ -63,17 +63,6 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         go('home');
     }
 
-    if ($action === 'request_refund' && $license) {
-        $reason = trim(mb_substr((string) ($_POST['reason'] ?? ''), 0, 1000));
-        log_issue('refund', ($license['company'] ?: $license['email']) . ' asked for a refund. Reason: ' . ($reason ?: '(none given)'));
-        send_mail((string) cfg('owner_email'), 'Refund request: ' . ($license['company'] ?: $license['email']),
-            "{$license['company']} ({$license['email']}) asked for their money back.\n\nReason: " . ($reason ?: '(none given)')
-            . "\nPlan: " . plan_name($license) . "\nBought: " . format_date($license['created_at'])
-            . "\n\nRefund it in Stripe (Payments → find the payment → Refund) and reply to them.\n");
-        ghl_event('refund_requested', ghl_license_contact($license), ghl_license_fields($license));
-        go('help', "We got your request. We'll refund you and email you within 2 business days.");
-    }
-
     if ($action === 'download_data' && $license) {
         $json = json_encode(export_customer_data($license), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         header('Content-Type: application/json; charset=utf-8');
@@ -1114,17 +1103,13 @@ elseif ($page === 'help'):
       <span class="muted">or email <b><?= h((string) cfg('owner_email')) ?></b></span>
     </div>
   </section>
-  <section class="card" id="refund">
-    <h2>Our guarantee</h2>
-    <p><?= h(guarantee_text()) ?></p>
-    <details>
-      <summary>Ask for your money back</summary>
-      <form method="post" action="portal.php">
-        <?= csrf_field() ?><input type="hidden" name="action" value="request_refund">
-        <label>Anything we should know? <span class="hint">Optional</span><textarea name="reason" maxlength="1000" rows="3"></textarea></label>
-        <button class="btn" type="submit">Request a refund</button>
-      </form>
-    </details>
+  <section class="card" id="billing">
+    <h2>Billing</h2>
+    <p><?= h(billing_terms_text()) ?></p>
+    <?php if (!empty($license['stripe_customer_id'])): ?>
+      <form method="post" action="billing.php"><?= csrf_field() ?><button class="btn" type="submit">Billing &amp; invoices</button></form>
+      <p class="muted small">Change your card, see invoices, or cancel your subscription.</p>
+    <?php endif; ?>
   </section>
   <section class="card">
     <h2>Your data</h2>
