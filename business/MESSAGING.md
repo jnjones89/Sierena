@@ -16,6 +16,10 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
 | **business profile** | Company, social media, team, goals | intake form |
 | **Your tools** | The software list with monthly cost and seats, matched to the audit (Team Audit) | software inventory, SaaS stack |
+| **Client journey** | The chain from new lead to paid invoice; each link marked Automatic / By hand / Sometimes / Doesn't happen | pipeline audit, process map |
+| **handoff tests** | Test lead, test booking, no-show and recap tests our team runs; shown as "Tested by our team" | mystery shop (internal only) |
+| **Interruptions** | Short check-ins (under 2 minutes) to social media, chat or email in the middle of work | distractions, time wasting |
+| **back and forth** | Two tools people jump between most, e.g. Gmail ↔ Google Sheets | context switching |
 | **audit bots** | The animated crew and live feed in the extension while it tracks | AI scanning, monitoring |
 | **Back-Office Check** | Industry questions about processes and SOPs, follow-up, contracts, compliance, data security. In the portal it shows up as **quick questions**, one at a time, answered Yes / Sometimes / No / Not sure | compliance audit, legal review |
 | **instant AI report** | Written by AI in the portal in 1–2 minutes | gap analysis, AI Gap Map |
@@ -53,6 +57,7 @@ Customers request it from Help in the Business Portal. You refund in Stripe.
 - Ask questions as "Do you…?" with Yes / Sometimes / No / Not sure.
 - One main button per screen. Details (tables, numbers) go on the Numbers page.
 - Say "tab switches", not "context switches"; "tasks you repeat", not "workflow loops"; "tools", not "domains".
+- Interruptions are a business finding, never a personal one. In Team Audits show them by role, never as "who was on Facebook".
 
 ## Privacy and trust lines (always the same)
 - *We only see website names and time spent. Never what you type, read or click.*

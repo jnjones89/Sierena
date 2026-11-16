@@ -88,6 +88,13 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
 - **Guarantee:** set `guarantee` in config. Customers ask from Help in the portal; you get an email and refund in Stripe.
 - **Survey:** three questions after the free results (extension), after a team member sends (extension), and after the owner's report (portal). Answers and the "Is the audit doing its job?" scoreboard are on `admin.php`.
 
+## Client journey and handoff tests
+- Portal **Client journey** page: the owner marks each link from new lead to paid invoice (industry-specific links for funding,
+  lending, insurance, credit repair, healthcare). Links are in `includes/chains.php`.
+- Evidence from the team's audits appears on the matching link (e.g. "After Zoom calls, people went straight to email 9 of 11 times").
+- On `admin.php`, each customer has **Handoff tests** (test lead, test booking, no-show, recap). Results show to the customer
+  as "Tested by our team" and override guesses. The report adds "Where things fall through the cracks".
+
 ## GoHighLevel
 See `GHL-SETUP.md`: connect tokens, click **Create GHL fields** on the admin page, then build the tag-triggered workflows.
 

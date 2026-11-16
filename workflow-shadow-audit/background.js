@@ -26,6 +26,7 @@ const MAX_SEGMENT_MS = 3 * 60 * 60 * 1000; // sanity cap for a single uninterrup
 const MAX_LOOP_KEYS = 1500;
 const LOOP_KEYS_AFTER_PRUNE = 750;
 const LOOP_SEPARATOR = ' -> ';
+const SHORT_VISIT_SECONDS = 120; // a "check-in": a visit shorter than 2 minutes
 
 const BADGE_COLOR_ON = '#16a34a';
 const BADGE_COLOR_DONE = '#7c5cff';
@@ -49,7 +50,8 @@ function defaultMetrics() {
     sessionStartedAt: new Date().toISOString(),
     rapidContextSwitches: 0,
     domains: {},
-    loops: {}
+    loops: {},
+    pairs: {}
   };
 }
 
@@ -60,6 +62,7 @@ function defaultRuntime() {
     lastDomain: null,
     recentDomains: [],
     lastSwitchAt: null,
+    visitSeconds: 0,
     idleState: 'active',
     windowFocused: true,
     focusedWindowId: null
@@ -157,6 +160,12 @@ function toDomain(rawUrl) {
   let host = (parsed.hostname || '').toLowerCase();
   if (!host) return null;
   if (host.startsWith('www.')) host = host.slice(4);
+  // Google's apps share one host. Keep only the kind of app (never the file id or name).
+  if (host === 'docs.google.com') {
+    const app = (parsed.pathname.split('/')[1] || '').toLowerCase();
+    const apps = { spreadsheets: 'sheets.google.com', presentation: 'slides.google.com', forms: 'forms.google.com' };
+    if (apps[app]) return apps[app];
+  }
   return host;
 }
 
@@ -211,6 +220,7 @@ function commitSegment(state, now, deductMs) {
       const entry = ensureDomain(state.metrics, rt.currentDomain);
       entry.activeSeconds += seconds;
       entry.lastVisited = new Date(now).toISOString();
+      if (rt.currentDomain === rt.lastDomain) rt.visitSeconds = (rt.visitSeconds || 0) + seconds;
     }
   }
   rt.segmentStart = null;
@@ -278,6 +288,19 @@ function applyContext(state, domain, isTabSwitch) {
     }
 
     if (domainChanged) {
+      if (rt.lastDomain) {
+        // Back-and-forth jumps (A -> B) and short check-ins (a visit of 3s to 2 min).
+        const pairs = (state.metrics.pairs = state.metrics.pairs || {});
+        const key = rt.lastDomain + LOOP_SEPARATOR + domain;
+        pairs[key] = (pairs[key] || 0) + 1;
+        pruneLoops(pairs);
+        const visit = rt.visitSeconds || 0;
+        if (visit >= 3 && visit < SHORT_VISIT_SECONDS) {
+          const prev = ensureDomain(state.metrics, rt.lastDomain);
+          prev.shortVisits = (prev.shortVisits || 0) + 1;
+        }
+      }
+      rt.visitSeconds = 0;
       const entry = ensureDomain(state.metrics, domain);
       entry.visitCount += 1;
       entry.lastVisited = new Date(now).toISOString();

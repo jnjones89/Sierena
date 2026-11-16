@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/industries.php';
 require_once __DIR__ . '/tools.php';
+require_once __DIR__ . '/chains.php';
 
 /* ------------------------------------------------------------------ */
 /* Configuration                                                       */
@@ -795,6 +796,7 @@ function sanitize_audit_payload($payload): ?array
             'domain'        => $domain,
             'activeMinutes' => round(max(0, (float) ($row['activeMinutes'] ?? 0)), 1),
             'visitCount'    => max(0, (int) ($row['visitCount'] ?? 0)),
+            'shortVisits'   => max(0, (int) ($row['shortVisits'] ?? 0)),
         ];
     }
 
@@ -805,6 +807,15 @@ function sanitize_audit_payload($payload): ?array
             continue;
         }
         $loops[] = ['sequence' => $seq, 'repeatCount' => max(0, (int) ($row['repeatCount'] ?? 0))];
+    }
+
+    $jumps = [];
+    foreach (array_slice((array) ($payload['domainJumps'] ?? []), 0, 60) as $row) {
+        $from = clean_domain($row['from'] ?? null);
+        $to   = clean_domain($row['to'] ?? null);
+        if ($from && $to && $from !== $to) {
+            $jumps[] = ['from' => $from, 'to' => $to, 'count' => max(0, (int) ($row['count'] ?? 0))];
+        }
     }
 
     $exportDate = (string) ($meta['exportDate'] ?? '');
@@ -822,6 +833,7 @@ function sanitize_audit_payload($payload): ?array
         ],
         'softwareUsage'         => $usage,
         'repeatedWorkflowLoops' => $loops,
+        'domainJumps'           => $jumps,
     ];
 }
 
@@ -854,6 +866,7 @@ function aggregate_audits(array $audits): array
 {
     $domains = [];
     $loops   = [];
+    $jumps   = [];
     $roles   = [];
     $minutes = 0.0;
     $switches = 0;
@@ -865,10 +878,15 @@ function aggregate_audits(array $audits): array
         $switches += (int) ($d['auditMetadata']['rapidContextSwitches'] ?? 0);
         foreach ($d['softwareUsage'] ?? [] as $u) {
             $k = $u['domain'];
-            $domains[$k] ??= ['domain' => $k, 'activeMinutes' => 0.0, 'visitCount' => 0, 'roles' => []];
+            $domains[$k] ??= ['domain' => $k, 'activeMinutes' => 0.0, 'visitCount' => 0, 'shortVisits' => 0, 'roles' => []];
             $domains[$k]['activeMinutes'] += (float) $u['activeMinutes'];
             $domains[$k]['visitCount']    += (int) $u['visitCount'];
+            $domains[$k]['shortVisits']   += (int) ($u['shortVisits'] ?? 0);
             $domains[$k]['roles'][$role] = true;
+        }
+        foreach ($d['domainJumps'] ?? [] as $jmp) {
+            $k = $jmp['from'] . ' -> ' . $jmp['to'];
+            $jumps[$k] = ($jumps[$k] ?? 0) + (int) $jmp['count'];
         }
         foreach ($d['repeatedWorkflowLoops'] ?? [] as $l) {
             $k = implode(' -> ', $l['sequence']);
@@ -892,6 +910,7 @@ function aggregate_audits(array $audits): array
         'rapidContextSwitches' => $switches,
         'softwareUsage'        => array_values($domains),
         'repeatedWorkflowLoops' => array_slice($loops, 0, 40),
+        'domainJumps'           => (function (array $j) { arsort($j); return array_slice($j, 0, 40, true); })($jumps),
     ];
 }
 
@@ -1105,6 +1124,9 @@ function money(float $n): string
 
 function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = [], array $tools = []): string
 {
+    $lidForChain = (int) $license['id'];
+    $chainStatus = chain_status($profile['industry'] ?: 'other', load_chain($lidForChain), chain_evidence($aggregate), load_tests($lidForChain));
+    $chainText = chain_prompt_text($chainStatus);
     $toolLines = [];
     foreach (tools_summary($tools, $aggregate)['rows'] as $t) {
         $toolLines[] = '- ' . $t['name'] . ': ' . money((float) $t['cost']) . '/month'
@@ -1181,11 +1203,17 @@ Hours and dollars per month for the team size given, with the math.
 From the Back-Office Check: the biggest gaps in processes, follow-up, contracts, compliance and data security,
 most serious first (compliance and contracts before the rest). For each: why it matters for a {$industry}
 business and how it can be automated. Then list the 3–5 SOPs to write first.
-## 7. Software you may not need
+## 7. Where things fall through the cracks
+From CLIENT JOURNEY: every link answered "Sometimes" or "Doesn't happen", every link where the audit or our test
+shows a problem, and "By hand" links that cost the most time. For each: what is being missed, what it likely costs
+(lost deals, slow payment, no-shows), the process fix, and the agent that keeps it from breaking again.
+Also point out interruptions: tools with many shortVisits (check-ins under 2 minutes, e.g. social media, chat, email)
+and the tools people jump between most (domainJumps), which usually means copying information by hand.
+## 8. Software you may not need
 Use the owner's real prices from SOFTWARE YOU PAY FOR. Flag tools that overlap, and tools that cost money but
 were barely used or not seen in the audit. A tool not seen may be a desktop app (the audit only sees websites),
 so say "check whether this is still used" rather than "cancel it". Give the possible monthly and yearly savings.
-## 8. Your next 30 days
+## 9. Your next 30 days
 Week 1 to Week 4, one or two actions each.
 
 ## BUSINESS PROFILE
@@ -1196,6 +1224,9 @@ Week 1 to Week 4, one or two actions each.
 
 ## SOFTWARE YOU PAY FOR
 {$toolText}
+
+## CLIENT JOURNEY (does each step trigger the next?)
+{$chainText}
 
 ## TEAM TELEMETRY (JSON)
 ```json

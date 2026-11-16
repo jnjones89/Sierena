@@ -20,10 +20,12 @@ const TOOL_CATALOG = [
   ['outlook.live.com', 'Outlook', 'email'],
   ['mail.yahoo.com', 'Yahoo Mail', 'email'],
   ['calendar.google.com', 'Google Calendar', 'calendar'],
-  ['meet.google.com', 'Google Meet', 'calendar'],
+  ['meet.google.com', 'Google Meet', 'meeting'],
   ['chat.google.com', 'Google Chat', 'chat'],
-  ['docs.google.com', 'Google Docs & Sheets', 'docs'],
   ['sheets.google.com', 'Google Sheets', 'docs'],
+  ['slides.google.com', 'Google Slides', 'docs'],
+  ['forms.google.com', 'Google Forms', 'forms'],
+  ['docs.google.com', 'Google Docs', 'docs'],
   ['drive.google.com', 'Google Drive', 'docs'],
   ['gemini.google.com', 'Gemini', 'ai'],
   ['business.google.com', 'Google Business Profile', 'social'],
@@ -47,7 +49,9 @@ const TOOL_CATALOG = [
   ['discord.com', 'Discord', 'chat'],
   ['calendly.com', 'Calendly', 'calendar'],
   ['acuityscheduling.com', 'Acuity', 'calendar'],
-  ['zoom.us', 'Zoom', 'calendar'],
+  ['zoom.us', 'Zoom', 'meeting'],
+  ['gotomeeting.com', 'GoTo Meeting', 'meeting'],
+  ['webex.com', 'Webex', 'meeting'],
   ['asana.com', 'Asana', 'pm'],
   ['trello.com', 'Trello', 'pm'],
   ['monday.com', 'monday.com', 'pm'],
@@ -95,7 +99,7 @@ const TOOL_CATALOG = [
 
 const CATEGORY_WORDS = {
   email: 'your inbox', crm: 'your CRM', docs: 'your docs & spreadsheets', chat: 'team chat',
-  calendar: 'your calendar', pm: 'your project tool', finance: 'your accounting tool',
+  calendar: 'your calendar', meeting: 'your meetings', pm: 'your project tool', finance: 'your accounting tool',
   social: 'social media', support: 'your help desk', store: 'your online store',
   forms: 'your forms & e-sign tool', ai: 'AI tools', search: 'web search', other: 'your tools'
 };
@@ -119,6 +123,21 @@ const PLAYBOOKS = [
       'It adds or updates the contact in {crm} and sets a follow-up.',
       'It writes a reply for you to approve and send.',
       'Connect {email} and {crm} with Make.com, n8n or Zapier.'
+    ]
+  },
+  {
+    needs: ['meeting'],
+    needsAny: ['email', 'crm', 'docs', 'calendar'],
+    area: 'Client follow-up',
+    task: 'Writing recaps, notes and next steps by hand after {meeting} calls.',
+    agent: 'Meeting Follow-up Agent',
+    does: 'After each {meeting} call, drafts the recap and next steps, saves the notes, and creates follow-up tasks.',
+    steps: [
+      'A call on {meeting} ends.',
+      'The agent drafts a recap with the next steps and who owns each one.',
+      'It saves the notes to {crm} and creates the follow-up tasks with due dates.',
+      'You check the recap and send it within the hour.',
+      'If the client goes quiet, it reminds you to follow up.'
     ]
   },
   {
@@ -401,6 +420,34 @@ function buildInsights(metrics) {
     focusTools = (work.length ? work : all).slice(0, 3);
   }
 
+  // Back-and-forth: the two tools people jump between most (both directions).
+  const pairsObj = (metrics && metrics.pairs) || {};
+  const pairTotals = {};
+  Object.keys(pairsObj).forEach((key) => {
+    const [a, b] = key.split(' -> ').map((d) => toolInfo(d).name);
+    if (!a || !b || a === b) return;
+    const k = [a, b].sort().join(' ↔ ');
+    pairTotals[k] = (pairTotals[k] || 0) + pairsObj[key];
+  });
+  let backAndForth = null;
+  Object.keys(pairTotals).forEach((k) => {
+    if (pairTotals[k] >= 6 && (!backAndForth || pairTotals[k] > backAndForth.count)) backAndForth = { label: k, count: pairTotals[k] };
+  });
+
+  // Interruptions: short check-ins (under 2 minutes) to social media, team chat or email.
+  const INTERRUPT_FIX = {
+    social: { agent: 'Social Media Agent', fix: 'answers common comments and messages and sends you only what needs you, so you can check twice a day.' },
+    chat: { agent: 'Chat Summary Agent', fix: 'sends you a short summary of what needs you twice a day, so you can stop checking.' },
+    email: { agent: 'Inbox Assistant Agent', fix: 'sorts your inbox and flags only what is urgent, so you can check three times a day.' }
+  };
+  let interruptions = null;
+  all.forEach((t) => {
+    const n = (domains[t.domain] && domains[t.domain].shortVisits) || 0;
+    if (INTERRUPT_FIX[t.category] && n >= 8 && (!interruptions || n > interruptions.count)) {
+      interruptions = Object.assign({ name: t.name, count: n, category: t.category }, INTERRUPT_FIX[t.category]);
+    }
+  });
+
   const categories = new Set(focusTools.map((t) => t.category));
   const main = buildRecommendation(matchPlaybook(categories) || FALLBACK_PLAYBOOK, focusTools);
 
@@ -428,6 +475,8 @@ function buildInsights(metrics) {
     extras,
     focusNames: [...new Set(focusTools.map((t) => t.name))],
     topTools: all.filter((t) => t.seconds > 0).slice(0, 5).map((t) => ({ name: t.name, seconds: t.seconds })),
+    backAndForth,
+    interruptions,
     focusSeconds,
     totalSeconds,
     quickSwitches: (metrics && metrics.rapidContextSwitches) || 0,

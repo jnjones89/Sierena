@@ -19,6 +19,7 @@ const PORTAL_PAGES = [
     'business'  => 'Your business',
     'tools'     => 'Your tools',
     'questions' => 'Questions',
+    'journey'   => 'Client journey',
     'team'      => 'Your team',
     'report'    => 'Report',
     'numbers'   => 'Numbers',
@@ -126,6 +127,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         write_profile_data($lid, array_merge(profile_data($lid), ['industry' => $industry]));
         go('questions', '', 'ok', ['q' => 0]);
+    }
+
+    if ($action === 'save_chain') {
+        $industry = load_profile($lid)['industry'] ?: 'other';
+        $chain = load_chain($lid);
+        foreach (chain_links($industry) as $id => $_) {
+            $v = (string) ($_POST['link_' . $id] ?? '');
+            if (isset(CHAIN_ANSWERS[$v])) {
+                $chain[$id] = $v;
+            }
+        }
+        write_profile_data($lid, array_merge(profile_data($lid), ['chain' => $chain]));
+        go('journey', 'Saved. Thank you!');
     }
 
     if ($action === 'answer') {
@@ -296,6 +310,7 @@ $company    = $profile['company'] ?: ($license['company'] ?: 'your business');
 $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
 $solo       = license_is_solo($license);
+$chainStatus = chain_status($industry, load_chain($lid), chain_evidence(aggregate_audits($audits)), load_tests($lid));
 $coverage   = data_coverage($license, $audits, $devices);
 $finalIncluded = plan_includes_final_plan($license);
 $dis        = $active ? '' : ' disabled';
@@ -365,6 +380,13 @@ if ($page === 'home'):
             'done'  => $questionsDone, 'title' => 'Answer some quick questions',
             'text'  => $summary['answered'] . ' of ' . $summary['total'] . ' answered. One question at a time, about 5 minutes.',
             'page'  => 'questions', 'cta' => $summary['answered'] === 0 ? 'Start' : ($questionsDone ? 'Review' : 'Continue'),
+        ],
+        [
+            'done'  => $chainStatus['counts']['unknown'] === 0, 'title' => 'Map your client journey',
+            'text'  => $chainStatus['counts']['unknown'] === 0
+                ? $chainStatus['counts']['ok'] . ' steps automatic · ' . ($chainStatus['counts']['manual'] + $chainStatus['counts']['weak']) . ' by hand or sometimes · ' . $chainStatus['counts']['broken'] . ' broken.'
+                : 'From new lead to paid invoice: does each step trigger the next? About 3 minutes.',
+            'page'  => 'journey', 'cta' => $chainStatus['counts']['unknown'] === count($chainStatus['rows']) ? 'Start' : ($chainStatus['counts']['unknown'] === 0 ? 'Review' : 'Continue'),
         ],
         [
             'done'  => $reportDone, 'title' => 'Get your report',
@@ -781,6 +803,48 @@ elseif ($page === 'report'):
     <summary>Copy the report prompt for ChatGPT or Claude</summary>
     <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist, $tools)); ?>
   </details>
+
+<?php
+/* ---------------------------- Journey ---------------------------- */
+elseif ($page === 'journey'):
+    $c = $chainStatus['counts'];
+    $statusWord = ['ok' => 'Automatic', 'manual' => 'By hand', 'weak' => 'Sometimes', 'broken' => 'Broken', 'unknown' => 'Not answered'];
+?>
+  <h1>Your client journey</h1>
+  <p class="lead">From a new lead to a paid invoice: does each step trigger the next one? This is where things usually fall through the cracks.</p>
+
+  <section class="card">
+    <div class="chain" aria-label="Your client journey at a glance">
+      <?php $i = 0; foreach ($chainStatus['rows'] as $r): ?>
+        <?php if ($i++ > 0): ?><span class="arrow" aria-hidden="true">→</span><?php endif; ?>
+        <span class="link <?= h($r['status']) ?>" title="<?= h($statusWord[$r['status']]) ?>"><?= h($r['label']) ?></span>
+      <?php endforeach; ?>
+    </div>
+    <p class="muted small legend"><span class="dot ok"></span> Automatic · <span class="dot manual"></span> By hand or sometimes · <span class="dot broken"></span> Broken · <span class="dot unknown"></span> Not answered
+      <?php if ($c['unknown'] < count($chainStatus['rows'])): ?> — <b><?= (int) $c['ok'] ?></b> automatic, <b><?= (int) ($c['manual'] + $c['weak']) ?></b> by hand or sometimes, <b><?= (int) $c['broken'] ?></b> broken<?php endif; ?></p>
+  </section>
+
+  <form method="post" action="portal.php">
+    <?= csrf_field() ?><input type="hidden" name="action" value="save_chain">
+    <?php $n = 0; foreach ($chainStatus['rows'] as $id => $r): $n++; ?>
+      <section class="card link-card <?= h($r['status']) ?>">
+        <div class="link-head"><span class="link-num"><?= $n ?></span><div><b><?= h($r['label']) ?></b><div class="muted"><?= h($r['q']) ?></div></div></div>
+        <div class="choice">
+          <?php foreach (CHAIN_ANSWERS as $k => $lbl): ?>
+            <label class="pill-radio"><input type="radio" name="link_<?= h($id) ?>" value="<?= h($k) ?>"<?= $r['answer'] === $k ? ' checked' : '' ?><?= $dis ?>><span><?= h($lbl) ?></span></label>
+          <?php endforeach; ?>
+        </div>
+        <?php if ($r['evidence']): ?><p class="evidence"><b>What the audit saw:</b> <?= h($r['evidence']['text']) ?></p><?php endif; ?>
+        <?php if ($r['test']): ?>
+          <p class="tested <?= $r['test']['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($r['test']['label']) ?>):</b> <?= h(TEST_RESULTS[$r['test']['result']]) ?><?= $r['test']['detail'] !== '' ? ' · ' . h($r['test']['detail']) : '' ?></p>
+        <?php endif; ?>
+        <?php if (in_array($r['status'], ['manual', 'weak', 'broken'], true)): ?>
+          <p class="muted small"><b>Fix:</b> <?= h($r['fix']) ?> <span class="badge"><?= h($r['agent']) ?></span></p>
+        <?php endif; ?>
+      </section>
+    <?php endforeach; ?>
+    <?php if ($active): ?><button class="btn primary" type="submit">Save</button><?php endif; ?>
+  </form>
 
 <?php
 /* ------------------------------ Help ----------------------------- */

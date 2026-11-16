@@ -168,3 +168,27 @@ fieldset.check-item legend { padding: 0 4px; font-size: 16px; }
 .faq summary { color: var(--text); }
 .faq p { margin: 6px 0 0; color: var(--muted); }
 .guarantee { font-size: 14px; color: var(--muted); margin: 12px 0 0; }
+/* Client journey */
+.chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chain .arrow { color: var(--muted); font-size: 13px; }
+.chain .link { font-size: 13px; font-weight: 600; padding: 5px 10px; border-radius: 999px; }
+.link.ok, .dot.ok { background: var(--green-soft); color: var(--green); }
+.link.manual, .link.weak, .dot.manual { background: var(--amber-soft); color: var(--amber); }
+.link.broken, .dot.broken { background: var(--red-soft); color: var(--red); }
+.link.unknown, .dot.unknown { background: var(--panel-2); color: var(--muted); }
+.legend { margin: 12px 0 0; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: -1px; }
+.dot.ok { background: var(--green); } .dot.manual { background: var(--amber); } .dot.broken { background: var(--red); } .dot.unknown { background: #c3c8d6; }
+.link-card { padding: 16px 18px; }
+.link-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.link-num { flex: 0 0 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; background: var(--panel-2); }
+.link-card.ok .link-num { background: var(--green-soft); color: var(--green); }
+.link-card.manual .link-num, .link-card.weak .link-num { background: var(--amber-soft); color: var(--amber); }
+.link-card.broken .link-num { background: var(--red-soft); color: var(--red); }
+.evidence { background: var(--amber-soft); color: #6b4a00; border-radius: 10px; padding: 8px 12px; font-size: 14px; margin: 10px 0 0; }
+.tested { border-radius: 10px; padding: 8px 12px; font-size: 14px; margin: 10px 0 0; }
+.tested.pass { background: var(--green-soft); color: var(--green); }
+.tested.fail { background: var(--red-soft); color: var(--red); }
+.test-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px 220px; gap: 12px; align-items: start; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.test-row select, .test-row input { margin: 0; }
+@media (max-width: 700px) { .test-row { grid-template-columns: 1fr; } }

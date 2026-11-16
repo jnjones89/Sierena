@@ -397,7 +397,8 @@ function computeSummary(metrics) {
   const entries = Object.keys(domains).map((domain) => ({
     domain,
     activeSeconds: domains[domain].activeSeconds || 0,
-    visitCount: domains[domain].visitCount || 0
+    visitCount: domains[domain].visitCount || 0,
+    shortVisits: domains[domain].shortVisits || 0
   }));
   entries.sort((a, b) => b.activeSeconds - a.activeSeconds || b.visitCount - a.visitCount);
   const totalSeconds = entries.reduce((sum, e) => sum + e.activeSeconds, 0);
@@ -430,8 +431,13 @@ function buildPayload() {
     softwareUsage: summary.entries.map((e) => ({
       domain: e.domain,
       activeMinutes: round1(e.activeSeconds / 60),
-      visitCount: e.visitCount
+      visitCount: e.visitCount,
+      shortVisits: e.shortVisits
     })),
+    domainJumps: Object.entries((latestMetrics && latestMetrics.pairs) || {})
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 40)
+      .map(([key, count]) => ({ from: key.split(LOOP_SEPARATOR)[0], to: key.split(LOOP_SEPARATOR)[1], count })),
     repeatedWorkflowLoops: summary.loops.slice(0, MAX_EXPORT_LOOPS).map((l) => ({
       sequence: l.sequence,
       repeatCount: l.repeatCount
@@ -793,11 +799,17 @@ function buildFeed(insight, tracking, enabled, business) {
   if (insight.loop) {
     items.push({ text: `Pattern spotted: ${insight.loop.names.join(' → ')} (${insight.loop.count} times)` });
   }
+  if (insight.backAndForth) {
+    items.push({ text: `Back and forth: ${insight.backAndForth.label} (${insight.backAndForth.count} times)` });
+  }
+  if (insight.interruptions) {
+    items.push({ text: `Quick check-ins: ${insight.interruptions.name} (${insight.interruptions.count} times)` });
+  }
   if (insight.quickSwitches > 0) {
     items.push({ text: `${insight.quickSwitches} quick tab switches so far` });
   }
   insight.topTools.slice(0, 3).forEach((t) => items.push({ text: `Noticed ${t.name}: ${duration(t.seconds)}` }));
-  return items.slice(0, 5);
+  return items.slice(0, 6);
 }
 
 function renderBots(insight, business) {
@@ -854,10 +866,24 @@ function renderResults(insight) {
     task.appendChild(textNode('div', `You did this ${insight.loop.count} times.`, 'muted small'));
   }
   task.appendChild(textNode('div', insight.main.task));
+  if (insight.backAndForth) {
+    task.appendChild(textNode('div', `You went back and forth between ${insight.backAndForth.label} ${insight.backAndForth.count} times.`, 'muted small'));
+  }
   const pct = insight.totalSeconds ? Math.round((insight.focusSeconds / insight.totalSeconds) * 100) : 0;
   task.appendChild(textNode('div',
     `Time in these tools: ${hours(insight.focusSeconds)} of ${hours(insight.totalSeconds)} hours (${pct}%).`, 'muted small'));
   wrap.appendChild(task);
+
+  // 1b. Interruptions
+  if (insight.interruptions) {
+    const it = insight.interruptions;
+    const box = document.createElement('div');
+    box.className = 'result';
+    box.appendChild(textNode('div', 'Interruptions', 'label'));
+    box.appendChild(textNode('div', `You checked ${it.name} ${it.count} times, usually for under 2 minutes, in the middle of other work.`));
+    box.appendChild(textNode('div', `Each check pulls you out of what you were doing. A ${it.agent} ${it.fix}`, 'muted small'));
+    wrap.appendChild(box);
+  }
 
   // 2. Agent
   const agent = document.createElement('div');

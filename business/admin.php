@@ -19,7 +19,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         session_regenerate_id(true);
         redirect(site_url('admin.php'));
     }
-    if (!empty($_SESSION['is_admin']) && in_array($_POST['action'] ?? '', ['save_final', 'free_seats', 'extend', 'set_stage'], true)) {
+    if (!empty($_SESSION['is_admin']) && in_array($_POST['action'] ?? '', ['save_final', 'free_seats', 'extend', 'set_stage', 'save_tests'], true)) {
         $lid = (int) ($_POST['license_id'] ?? 0);
         $lic = find_license_by_id($lid);
         if ($lic) {
@@ -38,6 +38,22 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                         ghl_event('final_plan_sent', ghl_license_contact($lic), ghl_license_fields($lic));
                     }
                 }
+            } elseif ($act === 'save_tests') {
+                $tests = load_tests($lid);
+                foreach (CHAIN_TESTS as $tid => $_) {
+                    $result = (string) ($_POST['result_' . $tid] ?? '');
+                    $detail = trim(mb_substr((string) ($_POST['detail_' . $tid] ?? ''), 0, 200));
+                    if (!array_key_exists($result, TEST_RESULTS)) {
+                        continue;
+                    }
+                    $changed = ($tests[$tid]['result'] ?? '') !== $result || ($tests[$tid]['detail'] ?? '') !== $detail;
+                    $tests[$tid] = [
+                        'result' => $result,
+                        'detail' => $detail,
+                        'date'   => $changed ? now_iso() : ($tests[$tid]['date'] ?? now_iso()),
+                    ];
+                }
+                write_profile_data($lid, array_merge(profile_data($lid), ['tests' => $tests]));
             } elseif ($act === 'set_stage') {
                 $stage = (string) ($_POST['stage'] ?? '');
                 if (array_key_exists($stage, BUILD_STAGES)) {
@@ -158,6 +174,36 @@ if (isset($_GET['view'])) {
       <form class="inline" method="post" action="admin.php"><?= $hidden ?><input type="hidden" name="action" value="extend"><button class="btn" type="submit">Extend audit +30 days</button></form>
       <form class="inline" method="post" action="admin.php" onsubmit="return confirm('Disconnect every browser from this key? Teammates re-connect by entering the key again.')"><?= $hidden ?><input type="hidden" name="action" value="free_seats"><button class="btn danger" type="submit">Free all seats</button></form>
     </div>
+
+    <?php
+      $cProfile = load_profile($lid);
+      $cStatus  = chain_status($cProfile['industry'] ?: 'other', load_chain($lid), chain_evidence($aggregate), load_tests($lid));
+      $cTests   = load_tests($lid);
+    ?>
+    <section class="card">
+      <h2>Client journey</h2>
+      <div class="chain">
+        <?php $i = 0; foreach ($cStatus['rows'] as $r): ?><?php if ($i++ > 0): ?><span class="arrow">→</span><?php endif; ?><span class="link <?= h($r['status']) ?>"><?= h($r['label']) ?></span><?php endforeach; ?>
+      </div>
+      <?php foreach ($cStatus['rows'] as $r): if ($r['evidence']): ?><p class="evidence"><b><?= h($r['label']) ?>:</b> <?= h($r['evidence']['text']) ?></p><?php endif; endforeach; ?>
+    </section>
+
+    <section class="card">
+      <h2>Handoff tests</h2>
+      <p class="muted small">Run these against the customer's real website and booking link. Results show on their Client journey page as "Tested by our team".</p>
+      <form method="post" action="admin.php">
+        <?= $hidden ?><input type="hidden" name="action" value="save_tests">
+        <?php foreach (CHAIN_TESTS as $tid => $t): $cur = $cTests[$tid] ?? ['result' => '', 'detail' => '', 'date' => null]; ?>
+          <div class="test-row">
+            <div><b><?= h($t['label']) ?></b><div class="muted small"><?= h($t['how']) ?></div>
+              <?php if (!empty($cur['date']) && $cur['result'] !== ''): ?><div class="muted small">Last updated <?= h(format_date($cur['date'])) ?></div><?php endif; ?></div>
+            <select name="result_<?= h($tid) ?>"><?php foreach (TEST_RESULTS as $k => $lbl): ?><option value="<?= h($k) ?>"<?= $cur['result'] === $k ? ' selected' : '' ?>><?= h($lbl) ?></option><?php endforeach; ?></select>
+            <input type="text" name="detail_<?= h($tid) ?>" maxlength="200" value="<?= h($cur['detail']) ?>" placeholder="e.g. reply in 3 hours">
+          </div>
+        <?php endforeach; ?>
+        <button class="btn primary" type="submit">Save tests</button>
+      </form>
+    </section>
 
     <section class="card">
       <h2>Final plan for the customer</h2>
