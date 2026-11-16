@@ -207,6 +207,11 @@ if (isset($_GET['view'])) {
           <p class="evidence crm <?= h($n['level']) ?>"><b><?= h(stations()[$sid]['title'] ?? $sid) ?>:</b> <?= h($n['text']) ?></p>
         <?php endforeach; endforeach; ?>
         <?php foreach ($cCrm['stats']['skipped'] ?? [] as $part => $why): ?><p class="muted small">Couldn't read <?= h($part) ?>: <?= h($why) ?></p><?php endforeach; ?>
+        <h3>Before → Now</h3>
+        <?php render_crm_compare($cCrm, false); ?>
+        <?php if (($cmpText = crm_compare_text($cCrm)) !== ''): ?>
+          <details><summary>Copy for an email</summary><textarea rows="8" readonly onclick="this.select()"><?= h($cmpText) ?></textarea></details>
+        <?php endif; ?>
       <?php endif; ?>
     </section>
 

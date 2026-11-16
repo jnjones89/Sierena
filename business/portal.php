@@ -1078,6 +1078,10 @@ elseif ($page === 'crm'):
       <?php if (isset($cs['deals']['close_rate'])): ?><div class="kpi"><b><?= (int) $cs['deals']['close_rate'] ?>%</b><span>close rate</span></div><?php endif; ?>
     </div>
     <section class="card">
+      <h2>Before → Now</h2>
+      <?php render_crm_compare($crm); ?>
+    </section>
+    <section class="card">
       <h2>What the numbers say</h2>
       <?php foreach ($found['stations'] as $sid2 => $notes): foreach ($notes as $n): ?>
         <p class="evidence crm <?= h($n['level']) ?>"><b><?= h($stationsDef[$sid2]['title'] ?? $sid2) ?>:</b> <?= h($n['text']) ?></p>
@@ -1169,6 +1173,13 @@ else:
     <h2>What your team's browsers show</h2>
     <?php render_telemetry(aggregate_audits($audits), $audits, false); ?>
   </section>
+  <?php if (!empty($crm['stats'])): ?>
+    <section class="card">
+      <h2>Your CRM: Before → Now</h2>
+      <?php render_crm_compare($crm); ?>
+      <p class="small"><a href="<?= h(portal_url('crm')) ?>">See your CRM numbers</a></p>
+    </section>
+  <?php endif; ?>
   <section class="card">
     <h2>Month by month</h2>
     <?php $months = progress_by_month($audits); if ($months) { render_progress($months); } else { echo '<p class="muted">Shows up after your first audit.</p>'; } ?>

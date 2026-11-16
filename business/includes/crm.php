@@ -362,12 +362,11 @@ function crm_connect(int $licenseId, string $locationId, string $token): string
     if (!isset($stats['contacts']) && !isset($stats['calendar']) && !isset($stats['deals'])) {
         return 'We could not read your CRM: ' . reset($stats['skipped']);
     }
-    crm_save($licenseId, [
+    crm_save($licenseId, crm_record([
         'location_id'  => $locationId,
         'token'        => crm_encrypt($token),
         'connected_at' => now_iso(),
-        'stats'        => $stats,
-    ]);
+    ], $stats));
     return '';
 }
 
@@ -379,9 +378,134 @@ function crm_refresh(int $licenseId): string
     if (!$token) {
         return 'Please connect your CRM again.';
     }
-    $crm['stats'] = crm_run_check((string) $crm['location_id'], $token);
-    crm_save($licenseId, $crm);
+    crm_save($licenseId, crm_record($crm, crm_run_check((string) $crm['location_id'], $token)));
     return '';
+}
+
+/* ------------------------------------------------------------------ */
+/* Before → Now: every check is kept as a small snapshot               */
+/* ------------------------------------------------------------------ */
+
+/** key => [label, which way is better ('down', 'up' or ''), format ('pct', 'min', 'num')] */
+const CRM_KPIS = [
+    'never_pct'      => ['New leads that never got a reply', 'down', 'pct'],
+    'median_minutes' => ['Typical first reply', 'down', 'min'],
+    'within5_pct'    => ['Answered within 5 minutes', 'up', 'pct'],
+    'avg_touches'    => ['Follow-ups per new lead', 'up', 'num'],
+    'show_rate'      => ['Show rate', 'up', 'pct'],
+    'rebooked_pct'   => ['No-shows that booked again', 'up', 'pct'],
+    'close_rate'     => ['Close rate', 'up', 'pct'],
+    'stuck'          => ['Open deals stuck 30+ days', 'down', 'num'],
+    'new_contacts'   => ['New contacts (last 90 days)', '', 'num'],
+];
+const CRM_HISTORY_MAX = 36;
+
+/** The headline numbers of one check. */
+function crm_kpis(array $stats): array
+{
+    $v = [
+        'never_pct'      => $stats['speed']['never_pct'] ?? null,
+        'median_minutes' => $stats['speed']['median_minutes'] ?? null,
+        'within5_pct'    => $stats['speed']['within5_pct'] ?? null,
+        'avg_touches'    => $stats['followup']['avg_touches'] ?? null,
+        'show_rate'      => $stats['calendar']['show_rate'] ?? null,
+        'rebooked_pct'   => ($stats['calendar']['noshow'] ?? 0) > 0 ? ($stats['calendar']['rebooked_pct'] ?? null) : null,
+        'close_rate'     => $stats['deals']['close_rate'] ?? null,
+        'stuck'          => isset($stats['deals']) ? (int) $stats['deals']['stuck'] : null,
+        'new_contacts'   => $stats['contacts']['new'] ?? null,
+    ];
+    return array_filter($v, fn($x) => $x !== null);
+}
+
+/** Store a new check: the latest full stats, plus a snapshot in the history. The first one is the baseline. */
+function crm_record(array $crm, array $stats): array
+{
+    $crm['stats'] = $stats;
+    $snap = ['at' => $stats['checked_at'], 'kpis' => crm_kpis($stats)];
+    $hist = array_values((array) ($crm['history'] ?? []));
+    if (!$hist && !empty($crm['baseline'])) {
+        $hist[] = $crm['baseline'];
+    }
+    // Same day as the last check (and not the baseline): replace it, so a busy day is one row.
+    $last = end($hist);
+    if (count($hist) > 1 && $last && substr((string) $last['at'], 0, 10) === substr($snap['at'], 0, 10)) {
+        array_pop($hist);
+    }
+    $hist[] = $snap;
+    if (count($hist) > CRM_HISTORY_MAX) {
+        $hist = array_merge([$hist[0]], array_slice($hist, -(CRM_HISTORY_MAX - 1)));
+    }
+    $crm['history']  = $hist;
+    $crm['baseline'] = $hist[0];
+    return $crm;
+}
+
+/** Older connections saved before history existed: treat their current numbers as the baseline. */
+function crm_history(array $crm): array
+{
+    $hist = array_values((array) ($crm['history'] ?? []));
+    if (!$hist && !empty($crm['stats'])) {
+        $hist = [['at' => $crm['stats']['checked_at'], 'kpis' => crm_kpis($crm['stats'])]];
+    }
+    return $hist;
+}
+
+function crm_format(string $fmt, $v): string
+{
+    return match ($fmt) {
+        'pct' => (int) $v . '%',
+        'min' => crm_minutes_text((int) $v),
+        default => (string) (is_float($v) ? round($v, 1) : $v),
+    };
+}
+
+/**
+ * Before → Now rows. Each: label, before, now, change ('better', 'worse', 'same', ''), change_text.
+ * Empty if there is only one check.
+ */
+function crm_compare(array $crm): array
+{
+    $hist = crm_history($crm);
+    if (count($hist) < 2) {
+        return [];
+    }
+    $first = $hist[0]['kpis'];
+    $now   = $hist[count($hist) - 1]['kpis'];
+    $rows  = [];
+    foreach (CRM_KPIS as $key => [$label, $better, $fmt]) {
+        if (!isset($first[$key]) || !isset($now[$key])) {
+            continue;
+        }
+        $a = (float) $first[$key];
+        $b = (float) $now[$key];
+        $diff = $b - $a;
+        $dir = abs($diff) < 0.05 ? 'same' : ($better === '' ? '' : ((($diff < 0) === ($better === 'down')) ? 'better' : 'worse'));
+        if ($fmt === 'pct') {
+            $txt = abs($diff) < 0.05 ? 'No change' : ($diff > 0 ? '+' : '−') . abs((int) round($diff)) . ' points';
+        } elseif ($fmt === 'min') {
+            $txt = abs($diff) < 0.05 ? 'No change' : ($a > 0 && $b < $a ? round($a / max($b, 1)) . '× faster' : crm_minutes_text((int) abs($diff)) . ($diff < 0 ? ' faster' : ' slower'));
+        } else {
+            $txt = abs($diff) < 0.05 ? 'No change' : ($diff > 0 ? '+' : '−') . (is_float($first[$key]) || is_float($now[$key]) ? round(abs($diff), 1) : (int) abs($diff));
+        }
+        $rows[] = ['label' => $label, 'before' => crm_format($fmt, $first[$key]), 'now' => crm_format($fmt, $now[$key]),
+                   'change' => $dir, 'change_text' => $txt];
+    }
+    return $rows;
+}
+
+/** One line for emails and the report prompt. */
+function crm_compare_text(array $crm): string
+{
+    $hist = crm_history($crm);
+    $rows = crm_compare($crm);
+    if (!$rows) {
+        return '';
+    }
+    $lines = ['Since ' . date('M j, Y', crm_ts($hist[0]['at']) ?: time()) . ' (first check) to ' . date('M j, Y', crm_ts(end($hist)['at']) ?: time()) . ':'];
+    foreach ($rows as $r) {
+        $lines[] = '- ' . $r['label'] . ': ' . $r['before'] . ' → ' . $r['now'] . ' (' . $r['change_text'] . ')';
+    }
+    return implode("\n", $lines);
 }
 
 /* ------------------------------------------------------------------ */
@@ -480,7 +604,11 @@ function crm_prompt_text(array $crm): string
     foreach ($crm['stats']['skipped'] ?? [] as $part => $why) {
         $lines[] = "- Could not read $part: $why";
     }
-    return $lines ? implode("\n", $lines) : '- Connected, but there was not enough data in the last ' . CRM_DAYS . ' days.';
+    $out = $lines ? implode("\n", $lines) : '- Connected, but there was not enough data in the last ' . CRM_DAYS . ' days.';
+    if (($cmp = crm_compare_text($crm)) !== '') {
+        $out .= "\n\nBefore → Now (their first CRM check compared with the latest; mention the wins):\n" . $cmp;
+    }
+    return $out;
 }
 
 /* ------------------------------------------------------------------ */

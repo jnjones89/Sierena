@@ -193,3 +193,30 @@ function render_checklist_summary(array $summary, bool $showGaps = true): void
     }
     echo '</table></div>';
 }
+
+/** Before → Now table from the customer's CRM checks. */
+function render_crm_compare(array $crm, bool $forCustomer = true): void
+{
+    $hist = crm_history($crm);
+    if (!$hist) {
+        return;
+    }
+    $rows = crm_compare($crm);
+    $since = date('M j, Y', crm_ts($hist[0]['at']) ?: time());
+    if (!$rows) {
+        echo '<p class="muted small">' . ($forCustomer
+            ? 'Your first check on ' . h($since) . ' is your starting point. After changes are made, press <b>Check again</b> to see Before → Now.'
+            : 'Baseline from ' . h($since) . '. Before → Now shows after the next check.') . '</p>';
+        return;
+    }
+    $now = date('M j, Y', crm_ts(end($hist)['at']) ?: time());
+    echo '<div class="table-wrap"><table class="compare"><tr><th></th><th>Before<br><span class="muted small">' . h($since) . '</span></th>'
+        . '<th>Now<br><span class="muted small">' . h($now) . '</span></th><th>Change</th></tr>';
+    foreach ($rows as $r) {
+        $cls = $r['change'] === 'better' ? 'up-good' : ($r['change'] === 'worse' ? 'up-bad' : '');
+        $icon = $r['change'] === 'better' ? '▲ ' : ($r['change'] === 'worse' ? '▼ ' : '');
+        echo '<tr><td>' . h($r['label']) . '</td><td>' . h($r['before']) . '</td><td><b>' . h($r['now']) . '</b></td>'
+            . '<td class="' . $cls . '">' . h($icon . $r['change_text']) . '</td></tr>';
+    }
+    echo '</table></div><p class="muted small">From ' . count($hist) . ' checks of ' . ($forCustomer ? 'your' : 'their') . ' GoHighLevel. ▲ better · ▼ worse.</p>';
+}

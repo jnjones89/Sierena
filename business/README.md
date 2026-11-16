@@ -114,6 +114,9 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
   The token is encrypted with `data_key` (set it in config). Disconnect deletes the token and the numbers.
 - The numbers show as **From your CRM** on the matching stations and steps, can only make a status worse,
   appear on `admin.php`, and go into the report prompt as "FROM THEIR CRM". Code: `includes/crm.php`.
+- **Before → Now:** every check is kept as a small snapshot (numbers only, up to 36). The first check is the baseline.
+  The CRM page, the Numbers page and `admin.php` show Before → Now (reply speed, never-replied, follow-ups, show rate,
+  no-show rebooking, close rate, stuck deals). Admin has "Copy for an email" to send the results to the client.
 
 ## GoHighLevel (your own Sirena Flow account)
 See `GHL-SETUP.md`: connect tokens, click **Create GHL fields** on the admin page, then build the tag-triggered workflows.
