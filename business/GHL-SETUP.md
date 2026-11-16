@@ -37,7 +37,13 @@ Add **Goal: tag `swa-team-audit-purchased` added** to the free-audit workflow so
 
 Optional segments: `swa-plan-solo`, `swa-plan-starter`, `swa-plan-team`, `swa-plan-company`, `swa-industry-<industry>`.
 
-## 3. Draft emails (edit freely)
+## 3. Emails
+**Sirena Flow: done.** All 12 are in Marketing → Emails → Templates → folder **Workflow Shadow Audit**:
+SWA 01–04 free audit (day 0, 2, 5, 9) · 05 welcome · 06 no audits yet · 07 one week left · 08 first audit received ·
+09 wants help · 10 final plan sent · 11 Results Tracking welcome · 12 win-back (day 14).
+Set the From name and From email on each. The drafts below are the same text, for reference.
+
+### Drafts (edit freely)
 
 **Free audit 1 — now.** Subject: *Your #1 bottleneck: {{contact.swa_bottleneck}}*
 > Thanks for running the free audit. Your biggest time drain is in **{{contact.swa_bottleneck}}**.

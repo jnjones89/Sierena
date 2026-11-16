@@ -46,8 +46,16 @@ See `business/GHL-SETUP.md`.
 - [x] Sirena Flow: the 14 SWA fields are created
 - [ ] Sirena Flow: Private Integration token (contacts.write, customFields read + write) → `ghl.sirena.api_token`
 - [ ] **Before adding the token:** check your existing workflows. Any that start on "Contact Created" or on any tag
-      will also catch audit leads. Add the filter "Tags does not contain swa-free-audit" (or similar) where needed.
-- [ ] Build the SWA workflows and emails from `GHL-SETUP.md` (they start on the `swa-…` tags)
+      will also catch audit leads. By their names, check these 5 first (GHL wouldn't let me read their triggers):
+      - SF Ownership | New Contact → Chesoni
+      - SF Pipeline | New Contact → New Prospect Deal (would make a deal for every free-audit lead)
+      - SF Internal Online Lead Intake
+      - SF Tag | Inbound Lead
+      - SF Internal Warm Lead Nurture
+      If one starts on new contacts, add the filter "Tags does not contain swa-free-audit" (or decide you want audit leads in it).
+- [x] The 12 SWA emails are created: Marketing → Emails → Templates → folder **Workflow Shadow Audit** (SWA 01 – SWA 12).
+      Set the From name and From email on each, and send yourself a test.
+- [ ] Build the 9 SWA workflows from `GHL-SETUP.md` (they start on the `swa-…` tags) and pick the matching SWA template in each email step
 - [ ] ALJA: token → `ghl.alja.api_token`, then `admin.php` → GoHighLevel → **Create GHL fields**
 
 ## 5. Chrome Web Store (1 hour, then review)
