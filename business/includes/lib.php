@@ -525,6 +525,39 @@ function guarantee_text(): string
     return (string) cfg_opt('guarantee', 'Not happy with your audit? Ask for your money back within 30 days. No questions asked.');
 }
 
+/**
+ * Results Tracking price for a customer, by team size.
+ * Supports the older single-price config ('price_label' + 'stripe_price_id') too.
+ * @return array{price_label:string,stripe_price_id:string}
+ */
+function monitoring_tier(?array $license = null): array
+{
+    $m = (array) cfg('monitoring');
+    if (empty($m['tiers'])) {
+        return ['price_label' => (string) ($m['price_label'] ?? ''), 'stripe_price_id' => (string) ($m['stripe_price_id'] ?? '')];
+    }
+    $tiers = $m['tiers'];
+    usort($tiers, fn($x, $y) => (int) $x['up_to'] <=> (int) $y['up_to']);
+    $seats = $license ? (int) $license['seats'] : 1;
+    foreach ($tiers as $t) {
+        if ($seats <= (int) $t['up_to']) {
+            return $t;
+        }
+    }
+    return end($tiers);
+}
+
+/** "from $97 / month" style label for the pricing page. */
+function monitoring_from_label(): string
+{
+    $m = (array) cfg('monitoring');
+    if (empty($m['tiers'])) {
+        return (string) ($m['price_label'] ?? '');
+    }
+    $labels = array_map(fn($t) => (string) $t['price_label'], $m['tiers']);
+    return count($labels) > 1 ? 'from ' . $labels[0] : $labels[0];
+}
+
 function license_monitoring(array $license): bool
 {
     return $license['monitor_status'] === 'active';

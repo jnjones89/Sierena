@@ -19,19 +19,23 @@ return [
     // "final_plan" = whether a final plan written by your team is included (default true).
     'plans' => [
         'solo'    => ['name' => 'Solo Audit',         'people' => 1,  'price_label' => '$97',  'stripe_price_id' => 'price_REPLACE_ME', 'solo' => true, 'final_plan' => false],
-        'starter' => ['name' => 'Starter Team Audit', 'people' => 5,  'price_label' => '$297', 'stripe_price_id' => 'price_REPLACE_ME'],
-        'team'    => ['name' => 'Team Audit',         'people' => 15, 'price_label' => '$497', 'stripe_price_id' => 'price_REPLACE_ME'],
-        'company' => ['name' => 'Company Audit',      'people' => 50, 'price_label' => '$997', 'stripe_price_id' => 'price_REPLACE_ME'],
+        'starter' => ['name' => 'Starter Team Audit', 'people' => 5,  'price_label' => '$397',   'stripe_price_id' => 'price_REPLACE_ME'],
+        'team'    => ['name' => 'Team Audit',         'people' => 15, 'price_label' => '$797',   'stripe_price_id' => 'price_REPLACE_ME'],
+        'company' => ['name' => 'Company Audit',      'people' => 50, 'price_label' => '$1,497', 'stripe_price_id' => 'price_REPLACE_ME'],
     ],
     // How long a one-time audit stays open for tracking, syncing and the portal.
     'audit_access_days' => 30,
 
-    // ---- Optional monthly Results Tracking (after the audit) ----
-    // Create a RECURRING monthly price in Stripe and paste its Price ID.
+    // ---- Optional monthly Results Tracking (after the audit), priced by team size ----
+    // Create one RECURRING monthly price per tier in Stripe and paste each Price ID.
+    // A customer gets the first tier whose "up_to" covers their seats.
     'monitoring' => [
-        'name'            => 'Results Tracking',
-        'price_label'     => '$97 / month',
-        'stripe_price_id' => 'price_REPLACE_ME',
+        'name'  => 'Results Tracking',
+        'tiers' => [
+            ['up_to' => 1,  'price_label' => '$97 / month',  'stripe_price_id' => 'price_REPLACE_ME'],
+            ['up_to' => 15, 'price_label' => '$197 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
+            ['up_to' => 50, 'price_label' => '$297 / month', 'stripe_price_id' => 'price_REPLACE_ME'],
+        ],
     ],
 
     // Shown on the pricing page, success page and Help. Customers request refunds from Help in the portal.

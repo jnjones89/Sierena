@@ -430,7 +430,7 @@ if ($page === 'home'):
   </section>
 
   <section class="card">
-    <h2><?= h((string) $monCfg['name']) ?> <span class="badge"><?= h((string) $monCfg['price_label']) ?></span></h2>
+    <h2><?= h((string) $monCfg['name']) ?> <span class="badge"><?= h(monitoring_tier($license)['price_label']) ?></span></h2>
     <?php if ($monitoring): ?>
       <p class="muted">On. Ask your team to send in their audits each month. See the results on the <a href="<?= h(portal_url('numbers')) ?>">Numbers</a> page.</p>
     <?php else: ?>

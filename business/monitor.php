@@ -50,7 +50,7 @@ if (!rate_limit('monitor_checkout', 10, 3600)) {
 
 $params = [
     'mode'       => 'subscription',
-    'line_items' => [['price' => (string) cfg('monitoring')['stripe_price_id'], 'quantity' => 1]],
+    'line_items' => [['price' => (string) monitoring_tier($license)['stripe_price_id'], 'quantity' => 1]],
     'metadata'   => ['kind' => 'monitoring', 'license_id' => (string) $license['id']],
     'subscription_data' => ['metadata' => ['kind' => 'monitoring', 'license_id' => (string) $license['id']]],
     'success_url' => site_url('monitor.php') . '?session_id={CHECKOUT_SESSION_ID}',

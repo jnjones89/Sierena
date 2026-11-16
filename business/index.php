@@ -96,9 +96,12 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
 </section>
 
 <section class="card">
-  <h2>After the audit: <?= h((string) $monitoring['name']) ?> <span class="badge"><?= h((string) $monitoring['price_label']) ?></span></h2>
+  <h2>After the audit: <?= h((string) $monitoring['name']) ?> <span class="badge"><?= h(monitoring_from_label()) ?></span></h2>
   <p class="muted">Optional. Keep the audit running every month after your agents are built, and see what improved:
     hours tracked, repeated tasks per hour and tab-jumping, month by month. Turn it on from your Business Portal; cancel any time.</p>
+  <?php $mt = (array) (cfg('monitoring')['tiers'] ?? []); if (count($mt) > 1): ?>
+    <p class="muted small"><?= h(implode(' · ', array_map(fn($t) => ((int) $t['up_to'] === 1 ? 'Solo' : 'Up to ' . (int) $t['up_to'] . ' people') . ': ' . $t['price_label'], $mt))) ?></p>
+  <?php endif; ?>
 </section>
 
 <section class="card">

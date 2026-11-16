@@ -40,8 +40,8 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
 ## Setup
 
 ### 1. Stripe
-1. **Product catalog → Add product** "Team Audit" with **three one-time prices** (e.g. $297, $497, $997). Copy each Price ID.
-2. Add a product "Results Tracking" with a **recurring monthly price** (e.g. $97). Copy the Price ID.
+1. **Product catalog → Add product** for the audits with **one-time prices**: Solo $97, Starter Team $397, Team $797, Company $1,497. Copy each Price ID.
+2. Add a product "Results Tracking" with **three recurring monthly prices**: $97 (Solo), $197 (up to 15 people), $297 (up to 50). Copy each Price ID.
 3. **Developers → API keys** → copy the Secret key.
 4. **Developers → Webhooks → Add endpoint** `https://YOURDOMAIN.com/business/webhook.php` with events
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `customer.subscription.updated`,
