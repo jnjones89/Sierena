@@ -16,6 +16,7 @@ One set of words everywhere: extension, pricing page, portal, emails, admin, web
 | **Business Portal** | Where the buyer signs in, fills in the profile and gets reports | dashboard, team portal, client area |
 | **business profile** | Company, social media, team, goals | intake form |
 | **Your tools** | The software list with monthly cost and seats, matched to the audit (Team Audit) | software inventory, SaaS stack |
+| **7 stations** | Lead capture · Speed to lead · Follow-up · Booking and conversion · Onboarding and handoff · Delivery · Retention and referral. Three questions at each: **Process** (Defined / Partly / Improvised), **Owner** (A named person / The owner / Nobody), **Automation** (Automated / Manual / Missing) | stages, funnel steps |
 | **Client journey** | The chain from new lead to paid invoice; each link marked Automatic / By hand / Sometimes / Doesn't happen | pipeline audit, process map |
 | **handoff tests** | Test lead, test booking, no-show and recap tests our team runs; shown as "Tested by our team" | mystery shop (internal only) |
 | **Interruptions** | Short check-ins (under 2 minutes) to social media, chat or email in the middle of work | distractions, time wasting |

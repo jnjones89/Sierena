@@ -92,7 +92,11 @@ Then switch every `sk_test_` / `whsec_` / `price_` value to live mode.
 - **Guarantee:** set `guarantee` in config. Customers ask from Help in the portal; you get an email and refund in Stripe.
 - **Survey:** three questions after the free results (extension), after a team member sends (extension), and after the owner's report (portal). Answers and the "Is the audit doing its job?" scoreboard are on `admin.php`.
 
-## Client journey and handoff tests
+## 7 stations, client journey and handoff tests
+- Portal **7 stations** page: lead capture, speed to lead, follow-up, booking and conversion, onboarding and handoff,
+  delivery, retention and referral. Each station asks a few facts plus three questions (process, owner, automation)
+  and gets a score. Defined in `includes/stations.php`. The report's section 7 covers each station with a process fix
+  (Sirena), owner fix and automation fix (ALJA).
 - Portal **Client journey** page: the owner marks each link from new lead to paid invoice (industry-specific links for funding,
   lending, insurance, credit repair, healthcare). Links are in `includes/chains.php`.
 - Evidence from the team's audits appears on the matching link (e.g. "After Zoom calls, people went straight to email 9 of 11 times").

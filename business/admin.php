@@ -40,7 +40,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
                 }
             } elseif ($act === 'save_tests') {
                 $tests = load_tests($lid);
-                foreach (CHAIN_TESTS as $tid => $_) {
+                foreach (STATION_TESTS as $tid => $_) {
                     $result = (string) ($_POST['result_' . $tid] ?? '');
                     $detail = trim(mb_substr((string) ($_POST['detail_' . $tid] ?? ''), 0, 200));
                     if (!array_key_exists($result, TEST_RESULTS)) {
@@ -178,8 +178,23 @@ if (isset($_GET['view'])) {
     <?php
       $cProfile = load_profile($lid);
       $cStatus  = chain_status($cProfile['industry'] ?: 'other', load_chain($lid), chain_evidence($aggregate), load_tests($lid));
+      $sStatus  = stations_status(load_stations($lid), station_evidence($aggregate), load_tests($lid));
       $cTests   = load_tests($lid);
     ?>
+    <section class="card">
+      <h2>7 stations</h2>
+      <div class="stations">
+        <?php $n = 0; foreach ($sStatus['rows'] as $r): $n++; $a = $r['answers']; ?>
+          <div class="station-tile <?= h($r['status']) ?>">
+            <span class="st-num"><?= $n ?></span><b><?= h($r['title']) ?></b>
+            <span class="st-status"><?= $r['score'] !== null ? (int) $r['score'] . '%' : 'Not answered' ?></span>
+            <span class="st-three"><span>P: <?= h(STATION_PROCESS[$a['process'] ?? ''] ?? '—') ?></span><span>O: <?= h(STATION_OWNER[$a['owner'] ?? ''] ?? '—') ?><?= ($a['owner_name'] ?? '') !== '' ? ' (' . h($a['owner_name']) . ')' : '' ?></span><span>A: <?= h(STATION_AUTOMATION[$a['automation'] ?? ''] ?? '—') ?></span></span>
+          </div>
+        <?php endforeach; ?>
+      </div>
+      <?php foreach ($sStatus['rows'] as $r): foreach (array_merge($r['flags'], $r['evidence']) as $note): ?><p class="evidence"><b><?= h($r['title']) ?>:</b> <?= h($note) ?></p><?php endforeach; endforeach; ?>
+    </section>
+
     <section class="card">
       <h2>Client journey</h2>
       <div class="chain">
@@ -190,10 +205,10 @@ if (isset($_GET['view'])) {
 
     <section class="card">
       <h2>Handoff tests</h2>
-      <p class="muted small">Run these against the customer's real website and booking link. Results show on their Client journey page as "Tested by our team".</p>
+      <p class="muted small">Run these against the customer's real website and booking link. Results show to the customer as "Tested by our team" on the matching station and Client journey step.</p>
       <form method="post" action="admin.php">
         <?= $hidden ?><input type="hidden" name="action" value="save_tests">
-        <?php foreach (CHAIN_TESTS as $tid => $t): $cur = $cTests[$tid] ?? ['result' => '', 'detail' => '', 'date' => null]; ?>
+        <?php foreach (STATION_TESTS as $tid => $t): $cur = $cTests[$tid] ?? ['result' => '', 'detail' => '', 'date' => null]; ?>
           <div class="test-row">
             <div><b><?= h($t['label']) ?></b><div class="muted small"><?= h($t['how']) ?></div>
               <?php if (!empty($cur['date']) && $cur['result'] !== ''): ?><div class="muted small">Last updated <?= h(format_date($cur['date'])) ?></div><?php endif; ?></div>

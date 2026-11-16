@@ -20,6 +20,7 @@ const PORTAL_PAGES = [
     'tools'     => 'Your tools',
     'questions' => 'Questions',
     'journey'   => 'Client journey',
+    'stations'  => '7 stations',
     'team'      => 'Your team',
     'report'    => 'Report',
     'numbers'   => 'Numbers',
@@ -140,6 +141,25 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         }
         write_profile_data($lid, array_merge(profile_data($lid), ['chain' => $chain]));
         go('journey', 'Saved. Thank you!');
+    }
+
+    if ($action === 'save_station') {
+        $sid = (string) ($_POST['station'] ?? '');
+        $ids = array_keys(stations());
+        if (!in_array($sid, $ids, true)) {
+            go('stations');
+        }
+        $all = load_stations($lid);
+        $all[$sid] = clean_station_input($sid, $_POST);
+        write_profile_data($lid, array_merge(profile_data($lid), ['stations' => $all]));
+        $next = $ids[array_search($sid, $ids, true) + 1] ?? null;
+        if (($_POST['go'] ?? '') === 'stay') {
+            go('stations', 'Saved.', 'ok', ['s' => $sid]);
+        }
+        if ($next) {
+            go('stations', '', 'ok', ['s' => $next]);
+        }
+        go('stations', $next ? 'Saved.' : "That's all 7 stations. Thank you!");
     }
 
     if ($action === 'answer') {
@@ -313,6 +333,7 @@ $tools      = load_tools($lid);
 $toolsSum   = tools_summary($tools, aggregate_audits($audits));
 $solo       = license_is_solo($license);
 $chainStatus = chain_status($industry, load_chain($lid), chain_evidence(aggregate_audits($audits)), load_tests($lid));
+$stStatus   = stations_status(load_stations($lid), station_evidence(aggregate_audits($audits)), load_tests($lid));
 $coverage   = data_coverage($license, $audits, $devices);
 $finalIncluded = plan_includes_final_plan($license);
 $dis        = $active ? '' : ' disabled';
@@ -389,6 +410,13 @@ if ($page === 'home'):
                 ? $chainStatus['counts']['ok'] . ' steps automatic · ' . ($chainStatus['counts']['manual'] + $chainStatus['counts']['weak']) . ' by hand or sometimes · ' . $chainStatus['counts']['broken'] . ' broken.'
                 : 'From new lead to paid invoice: does each step trigger the next? About 3 minutes.',
             'page'  => 'journey', 'cta' => $chainStatus['counts']['unknown'] === count($chainStatus['rows']) ? 'Start' : ($chainStatus['counts']['unknown'] === 0 ? 'Review' : 'Continue'),
+        ],
+        [
+            'done'  => $stStatus['done'] === $stStatus['total'], 'title' => 'Check your 7 stations',
+            'text'  => $stStatus['done'] === $stStatus['total']
+                ? $stStatus['counts']['ok'] . ' green · ' . $stStatus['counts']['weak'] . ' amber · ' . $stStatus['counts']['broken'] . ' red. From first lead to referral.'
+                : $stStatus['done'] . ' of ' . $stStatus['total'] . ' done. From first lead to referral: process, owner and automation at each step. About 5 minutes.',
+            'page'  => 'stations', 'cta' => $stStatus['done'] === 0 ? 'Start' : ($stStatus['done'] === $stStatus['total'] ? 'Review' : 'Continue'),
         ],
         [
             'done'  => $reportDone, 'title' => 'Get your report',
@@ -875,6 +903,111 @@ elseif ($page === 'journey'):
   </form>
 
 <?php
+/* ---------------------------- Stations --------------------------- */
+elseif ($page === 'stations'):
+    $sid = (string) ($_GET['s'] ?? '');
+    $ids = array_keys(stations());
+    $statusWord = ['ok' => 'Green', 'weak' => 'Needs work', 'broken' => 'Broken', 'unknown' => 'Not answered'];
+    if (!in_array($sid, $ids, true)):
+        $firstOpen = $ids[0];
+        foreach ($stStatus['rows'] as $id => $r) {
+            if (!$r['complete']) { $firstOpen = $id; break; }
+        }
+?>
+  <h1>Your 7 stations</h1>
+  <p class="lead">Every business has the same 7 stations, from the first lead to a referral. At each one we check three things:
+    is the <b>process</b> defined, who <b>owns</b> it, and is it <b>automated</b>?</p>
+  <?php if ($active): ?>
+    <p><a class="btn primary" href="<?= h(portal_url('stations', ['s' => $firstOpen])) ?>"><?= $stStatus['done'] === 0 ? 'Start with station 1' : ($stStatus['done'] === $stStatus['total'] ? 'Review your answers' : 'Continue') ?></a>
+      <span class="muted small"><?= (int) $stStatus['done'] ?> of <?= (int) $stStatus['total'] ?> done</span></p>
+  <?php endif; ?>
+  <div class="stations">
+    <?php $n = 0; foreach ($stStatus['rows'] as $id => $r): $n++; $a = $r['answers']; ?>
+      <a class="station-tile <?= h($r['status']) ?>" href="<?= h(portal_url('stations', ['s' => $id])) ?>">
+        <span class="st-num"><?= $n ?></span>
+        <b><?= h($r['title']) ?></b>
+        <span class="st-status"><?= h($statusWord[$r['status']]) ?><?= $r['score'] !== null ? ' · ' . (int) $r['score'] . '%' : '' ?></span>
+        <span class="st-three">
+          <span title="Process">P: <?= h(STATION_PROCESS[$a['process'] ?? ''] ?? '—') ?></span>
+          <span title="Owner">O: <?= h(STATION_OWNER[$a['owner'] ?? ''] ?? '—') ?></span>
+          <span title="Automation">A: <?= h(STATION_AUTOMATION[$a['automation'] ?? ''] ?? '—') ?></span>
+        </span>
+        <?php if ($r['flags'] || $r['evidence'] || $r['tests']): ?><span class="st-note"><?= count($r['flags']) + count($r['evidence']) + count($r['tests']) ?> note<?= count($r['flags']) + count($r['evidence']) + count($r['tests']) === 1 ? '' : 's' ?></span><?php endif; ?>
+      </a>
+    <?php endforeach; ?>
+  </div>
+<?php
+    else:
+        $r   = $stStatus['rows'][$sid];
+        $a   = $r['answers'];
+        $pos = array_search($sid, $ids, true);
+        $radio = function (string $name, array $options, string $cur) use ($dis) {
+            $out = '<div class="choice">';
+            foreach ($options as $k => $lbl) {
+                $out .= '<label class="pill-radio"><input type="radio" name="' . h($name) . '" value="' . h($k) . '"' . ($cur === $k ? ' checked' : '') . $dis . '><span>' . h($lbl) . '</span></label>';
+            }
+            return $out . '</div>';
+        };
+?>
+  <p class="muted small" style="margin:0">Station <?= $pos + 1 ?> of <?= count($ids) ?> · <a href="<?= h(portal_url('stations')) ?>">All stations</a></p>
+  <div class="progress"><div style="width:<?= (int) round(100 * $pos / count($ids)) ?>%"></div></div>
+  <h1><?= h($r['title']) ?></h1>
+  <p class="lead"><?= h($r['check']) ?></p>
+
+  <form method="post" action="portal.php">
+    <?= csrf_field() ?><input type="hidden" name="action" value="save_station"><input type="hidden" name="station" value="<?= h($sid) ?>">
+    <section class="card">
+      <h2>A few quick facts</h2>
+      <?php foreach ($r['facts'] as [$key, $q, $type, $options]): $v = $a['facts'][$key] ?? ($type === 'multi' ? [] : ''); ?>
+        <p class="q"><?= h($q) ?><?= $type === 'multi' ? ' <span class="muted small">(pick all that apply)</span>' : '' ?></p>
+        <?php if ($type === 'number'): ?>
+          <input class="pct" type="text" inputmode="numeric" name="f_<?= h($key) ?>" value="<?= h((string) $v) ?>" placeholder="e.g. 70" aria-label="<?= h($q) ?>"<?= $dis ?>> <span class="muted">%</span>
+        <?php elseif ($type === 'multi'): ?>
+          <div class="choice">
+            <?php foreach ($options as $k => $lbl): ?><label class="pill-radio"><input type="checkbox" name="f_<?= h($key) ?>[]" value="<?= h($k) ?>"<?= in_array($k, (array) $v, true) ? ' checked' : '' ?><?= $dis ?>><span><?= h($lbl) ?></span></label><?php endforeach; ?>
+          </div>
+        <?php else: ?>
+          <?= $radio('f_' . $key, $options, (string) $v) ?>
+        <?php endif; ?>
+      <?php endforeach; ?>
+    </section>
+
+    <section class="card">
+      <h2>Three questions</h2>
+      <p class="q">Process: is it defined, or improvised?</p>
+      <?= $radio('process', STATION_PROCESS, (string) ($a['process'] ?? '')) ?>
+      <p class="q">Owner: who is responsible?</p>
+      <?= $radio('owner', STATION_OWNER, (string) ($a['owner'] ?? '')) ?>
+      <label style="margin-top:8px">Name or role <span class="hint">Optional, e.g. "Maria, office manager"</span><input type="text" name="owner_name" maxlength="80" value="<?= h((string) ($a['owner_name'] ?? '')) ?>"<?= $dis ?>></label>
+      <p class="q">Automation: is it automated, manual, or missing?</p>
+      <?= $radio('automation', STATION_AUTOMATION, (string) ($a['automation'] ?? '')) ?>
+    </section>
+
+    <?php if ($r['flags'] || $r['evidence'] || $r['tests']): ?>
+      <section class="card">
+        <h2>What we noticed</h2>
+        <?php foreach ($r['flags'] as $f): ?><p class="evidence"><?= h($f) ?></p><?php endforeach; ?>
+        <?php foreach ($r['evidence'] as $e): ?><p class="evidence"><b>What the audit saw:</b> <?= h($e) ?></p><?php endforeach; ?>
+        <?php foreach ($r['tests'] as $t): ?><p class="tested <?= $t['result'] === 'pass' ? 'pass' : 'fail' ?>"><b>Tested by our team (<?= h($t['label']) ?>):</b> <?= h(TEST_RESULTS[$t['result']]) ?><?= $t['detail'] !== '' ? ' · ' . h($t['detail']) : '' ?></p><?php endforeach; ?>
+        <?php if (in_array($r['status'], ['weak', 'broken'], true)): ?>
+          <p class="muted small"><b>Fix:</b> <?= h($r['fix']) ?> <span class="badge"><?= h($r['agent']) ?></span></p>
+        <?php endif; ?>
+      </section>
+    <?php endif; ?>
+
+    <div class="wizard-nav">
+      <?php if ($pos > 0): ?><a href="<?= h(portal_url('stations', ['s' => $ids[$pos - 1]])) ?>">← Back</a><?php else: ?><span></span><?php endif; ?>
+      <?php if ($active): ?>
+        <span class="actions">
+          <button class="btn" type="submit" name="go" value="stay">Save</button>
+          <button class="btn primary" type="submit" name="go" value="next"><?= $pos + 1 < count($ids) ? 'Save and next →' : 'Save and finish' ?></button>
+        </span>
+      <?php endif; ?>
+    </div>
+  </form>
+<?php
+    endif;
+
 /* ------------------------------ Help ----------------------------- */
 elseif ($page === 'help'):
 ?>

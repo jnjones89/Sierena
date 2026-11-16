@@ -9,6 +9,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/industries.php';
 require_once __DIR__ . '/tools.php';
 require_once __DIR__ . '/chains.php';
+require_once __DIR__ . '/stations.php';
 
 /* ------------------------------------------------------------------ */
 /* Configuration                                                       */
@@ -1157,9 +1158,9 @@ function money(float $n): string
 
 function build_business_prompt(array $license, array $profile, array $aggregate, array $checklist = [], array $tools = []): string
 {
-    $lidForChain = (int) $license['id'];
-    $chainStatus = chain_status($profile['industry'] ?: 'other', load_chain($lidForChain), chain_evidence($aggregate), load_tests($lidForChain));
-    $chainText = chain_prompt_text($chainStatus);
+    $lidForJourney = (int) $license['id'];
+    $chainText = chain_prompt_text(chain_status($profile['industry'] ?: 'other', load_chain($lidForJourney), chain_evidence($aggregate), load_tests($lidForJourney)));
+    $stationText = stations_prompt_text(stations_status(load_stations($lidForJourney), station_evidence($aggregate), load_tests($lidForJourney)));
     $toolLines = [];
     foreach (tools_summary($tools, $aggregate)['rows'] as $t) {
         $toolLines[] = '- ' . $t['name'] . ': ' . money((float) $t['cost']) . '/month'
@@ -1236,17 +1237,24 @@ Hours and dollars per month for the team size given, with the math.
 From the Back-Office Check: the biggest gaps in processes, follow-up, contracts, compliance and data security,
 most serious first (compliance and contracts before the rest). For each: why it matters for a {$industry}
 business and how it can be automated. Then list the 3–5 SOPs to write first.
-## 7. Where things fall through the cracks
-From CLIENT JOURNEY: every link answered "Sometimes" or "Doesn't happen", every link where the audit or our test
-shows a problem, and "By hand" links that cost the most time. For each: what is being missed, what it likely costs
-(lost deals, slow payment, no-shows), the process fix, and the agent that keeps it from breaking again.
+## 7. Your 7 stations
+Use THE 7 STATIONS below (lead capture, speed to lead, follow-up, booking and conversion, onboarding and handoff,
+delivery, retention and referral). Start with a small table: Station | Process | Owner | Automation | Score.
+Then, for each station that is not green (weakest first): what is being missed (use the facts, flags, audit evidence and
+our tests), what it likely costs (lost leads, no-shows, slow payment, lost repeat business), and three fixes:
+the **process fix** (Sirena: the defined steps and checklist), the **owner fix** (who should own it, so it doesn't sit
+with the business owner or nobody), and the **automation fix** (ALJA: the agent that runs it).
+## 8. Where things fall through the cracks
+From CLIENT JOURNEY: every step answered "Sometimes" or "Doesn't happen", every step where the audit or our test
+shows a problem, and "By hand" steps that cost the most time. For each: what is being missed, what it likely costs,
+the process fix, and the agent that keeps it from breaking again. Don't repeat what you already said in section 7.
 Also point out interruptions: tools with many shortVisits (check-ins under 2 minutes, e.g. social media, chat, email)
 and the tools people jump between most (domainJumps), which usually means copying information by hand.
-## 8. Software you may not need
+## 9. Software you may not need
 Use the owner's real prices from SOFTWARE YOU PAY FOR. Flag tools that overlap, and tools that cost money but
 were barely used or not seen in the audit. A tool not seen may be a desktop app (the audit only sees websites),
 so say "check whether this is still used" rather than "cancel it". Give the possible monthly and yearly savings.
-## 9. Your next 30 days
+## 10. Your next 30 days
 Week 1 to Week 4, one or two actions each.
 
 ## BUSINESS PROFILE
@@ -1257,6 +1265,9 @@ Week 1 to Week 4, one or two actions each.
 
 ## SOFTWARE YOU PAY FOR
 {$toolText}
+
+## THE 7 STATIONS (three questions at each: process, owner, automation)
+{$stationText}
 
 ## CLIENT JOURNEY (does each step trigger the next?)
 {$chainText}
