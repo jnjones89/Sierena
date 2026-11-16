@@ -51,7 +51,7 @@ render_header('Payment confirmed');
       <li>Everyone works normally for a few days.</li>
       <li>Each person clicks <b>Send to my Business Portal</b>.</li>
       <?php endif; ?>
-      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, fill in your business profile and the Back-Office Check, then get your instant AI report. Our team follows up with your final plan.</li>
+      <li><a href="portal.php">Sign in to your Business Portal</a> with your email and key, fill in your business profile and the Back-Office Check, then <?= ai_reports_enabled() ? 'get your instant AI report. Our team follows up with your final plan.' : 'our team sends your final plan.' ?></li>
     </ol>
     <a class="btn primary" href="portal.php">Open Business Portal →</a>
   </section>

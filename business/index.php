@@ -44,7 +44,7 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
             <li>No 5-hour limit: audit your whole week</li>
             <li>Back-Office Check for your industry</li>
             <li>Your tools and what they really cost</li>
-            <li>Instant AI report<?= !empty($plan['final_plan']) ? ', plus a final plan from our team' : ' and a free call to go over it' ?></li>
+            <li><?= h(report_bullet($plan)) ?></li>
             <li>Your free audit hours carry over</li>
           </ul>
         <?php else: ?>
@@ -52,7 +52,7 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
           <ul>
             <li>Browser audit for up to <?= (int) $plan['people'] ?> people</li>
             <li>Back-Office Check for your industry</li>
-            <li>Instant AI report<?= ($plan['final_plan'] ?? true) ? ', plus a final plan from our team' : '' ?></li>
+            <li><?= h(report_bullet($plan)) ?></li>
             <li><?= $days ?> days to run the audit</li>
           </ul>
         <?php endif; ?>
@@ -80,7 +80,7 @@ your biggest bottlenecks, the repetitive tasks behind them, the AI agents you ne
   <ul class="steps">
     <li><b>Browser audit</b> — each person runs the private, read-only extension for a few days.</li>
     <li><b>Back-Office Check</b> — your processes and SOPs, follow-up, contracts, compliance and data security, set up the way <?= h((string) cfg('brand_name')) ?> would set up your back office.</li>
-    <li><b>Instant AI report</b> — your bottlenecks, the AI agents you need, a step-by-step fix and what it is costing you.</li>
+    <li><b><?= ai_reports_enabled() ? 'Instant AI report' : 'Your report' ?></b> — your bottlenecks, the AI agents you need, a step-by-step fix and what it is costing you.</li>
     <li><b>Final plan from our team</b> — reviewed by a person, with the SOPs to write first. If we build your agents, the audit price is credited toward the build.</li>
   </ul>
   <h3>Every industry is checked differently</h3>

@@ -219,7 +219,8 @@ if (isset($_GET['view'])) {
 
     <section class="card">
       <h2>Instant AI report</h2>
-      <?= $aiReport ? '<p class="muted small">Generated ' . h(format_date($aiReport['created_at'])) . ' · ' . h($aiReport['model']) . '</p>' . render_markdown($aiReport['content']) : '<p class="muted">The customer has not generated one yet.</p>' ?>
+      <?= $aiReport ? '<p class="muted small">Generated ' . h(format_date($aiReport['created_at'])) . ' · ' . h($aiReport['model']) . '</p>' . render_markdown($aiReport['content'])
+          : (ai_reports_enabled() ? '<p class="muted">The customer has not generated one yet.</p>' : '<p class="muted">The instant AI report is turned off. Copy the report prompt at the bottom of this page into Claude or ChatGPT for a first draft, then edit it into the final plan.</p>') ?>
     </section>
 
     <section class="card"><h2>Business profile</h2><?php render_profile_readonly($profile); ?></section>
@@ -316,7 +317,7 @@ $leads = db()->query('SELECT * FROM leads ORDER BY id DESC LIMIT 200')->fetchAll
             <td><?= h(plan_name($c)) ?><?= license_monitoring($c) ? '<br><span class="badge">Tracking</span>' : '' ?></td>
             <td><?= license_is_active($c) ? '<span class="badge green">Active</span>' : '<span class="badge red">Ended</span>' ?></td>
             <td><?= (int) $c['audit_count'] ?></td>
-            <td><?= $c['final_count'] ? '<span class="badge green">Plan sent</span>' : ($c['ai_count'] ? '<span class="badge">Needs follow-up</span>' : '<span class="muted">—</span>') ?></td>
+            <td><?= $c['final_count'] ? '<span class="badge green">Plan sent</span>' : ($c['ai_count'] ? '<span class="badge">Needs follow-up</span>' : ((!ai_reports_enabled() && $c['audit_count'] > 0 && plan_includes_final_plan($c)) ? '<span class="badge red">Needs final plan</span>' : '<span class="muted">—</span>')) ?></td>
             <td><?= h(substr((string) $c['created_at'], 0, 10)) ?></td>
             <td><a class="btn" style="padding:4px 10px" href="admin.php?view=<?= (int) $c['id'] ?>">Open</a></td>
           </tr>

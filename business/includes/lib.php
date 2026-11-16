@@ -706,7 +706,7 @@ function notify_new_license(array $license): void
         . "1. Each person installs the Workflow Shadow Audit extension, clicks \"Have a team key?\", pastes this key and turns tracking on.\n"
         . "2. Everyone works normally for a few days, then clicks \"Send to my Business Portal\".\n"
         . "3. Sign in to your Business Portal with this email and key. Fill in your business profile and the Back-Office Check,\n"
-        . "   then get your instant AI report. Our team follows up with your final plan:\n    "
+        . (ai_reports_enabled() ? "   then get your instant AI report. Our team follows up with your final plan:\n    " : "   and our team sends your final plan:\n    ")
         . site_url('portal.php') . "\n\n"
         . "Keep this key private — anyone with it can see your company's portal.\n\n— $brand\n"
     );
@@ -1858,8 +1858,10 @@ function journey(array $license, bool $hasAudits, bool $hasAi, bool $hasFinal): 
     $final = plan_includes_final_plan($license);
     $steps = [
         ['label' => 'Audit', 'done' => $hasAudits],
-        ['label' => 'Instant AI report', 'done' => $hasAi],
     ];
+    if (ai_reports_enabled()) {
+        $steps[] = ['label' => 'Instant AI report', 'done' => $hasAi];
+    }
     if ($final) {
         $steps[] = ['label' => 'Final plan (within 2 business days)', 'done' => $hasFinal];
     }
@@ -1964,4 +1966,15 @@ function scoreboard(): array
         'unknown_tools' => array_slice($unknown, 0, 10, true),
         'conversion'    => $leads ? min(100, (int) round(100 * array_sum($plans) / $leads)) : null,
     ];
+}
+
+
+/** What the pricing page calls the report, depending on whether the instant AI report is on. */
+function report_bullet(array $plan): string
+{
+    $final = (bool) ($plan['final_plan'] ?? true);
+    if (ai_reports_enabled()) {
+        return 'Instant AI report' . ($final ? ', plus a final plan from our team' : ' and a free call to go over it');
+    }
+    return $final ? 'A full report and final plan from our team' : 'Your AI report prompt for ChatGPT or Claude, and a free call to go over it';
 }

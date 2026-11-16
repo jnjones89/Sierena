@@ -109,7 +109,7 @@ function render_prompt_box(string $prompt): void
 {
     echo '<textarea class="prompt" id="gapPrompt" readonly>' . h($prompt) . '</textarea>'
         . '<div class="actions" style="margin-top:10px"><button class="btn primary" type="button" data-copy="gapPrompt">Copy report prompt</button>'
-        . '<span class="muted small">Paste into Claude or ChatGPT to generate the client report and agent plan.</span></div>';
+        . '<span class="muted small">Paste it into ChatGPT or Claude to get your report.</span></div>';
 }
 
 function render_progress(array $months): void

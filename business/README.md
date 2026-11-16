@@ -48,7 +48,11 @@ Free extension user ──► "Audit my whole team" ──► /business/ (pricin
    `customer.subscription.deleted`. Copy the Signing secret.
 5. **Settings → Billing → Customer portal** → turn it on (customers manage Results Tracking and invoices).
 
-### 2. Claude (instant report)
+### 2. Claude (instant report) — optional
+Leave `anthropic_api_key` empty to run with **AI off**: no Anthropic cost. Customers get a "Get an AI report draft now"
+card (copy the prompt into their own ChatGPT or Claude), Team plans get the final plan from your team, and admin.php
+marks customers "Needs final plan" as soon as audits arrive. The free audit never uses Anthropic either way.
+
 1. console.anthropic.com → **API keys** → create a key and add a few dollars of credit. Each report costs a few cents.
 2. Paste it as `anthropic_api_key`. Leave it empty to turn instant reports off — you can still publish plans from admin.php.
 

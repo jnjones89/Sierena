@@ -392,7 +392,8 @@ if ($page === 'home'):
             'done'  => $reportDone, 'title' => 'Get your report',
             'text'  => $finalPlan ? 'Your final plan from our team is ready.'
                 : ($aiReport ? ($finalIncluded ? 'Your instant AI report is ready. Our team is preparing your final plan.' : 'Your instant AI report is ready. Book a free call to go over it.')
-                : ($solo ? 'Ready as soon as you send in your audit.' : 'Ready as soon as your team sends in their audits.')),
+                : (($audits && !ai_reports_enabled()) ? ($finalIncluded ? 'Our team is writing your final plan (within 2 business days). Want a draft now? Open your report.' : 'Your results are in. Make your AI report and book a free call.')
+                : ($solo ? 'Ready as soon as you send in your audit.' : 'Ready as soon as your team sends in their audits.'))),
             'page'  => 'report', 'cta' => $reportDone ? 'Read it' : 'Open',
         ],
     ];
@@ -758,6 +759,15 @@ elseif ($page === 'report'):
       <h2>Almost there</h2>
       <p class="muted"><?= $solo ? 'Your report is ready as soon as you send in your audit from the extension.' : 'Your report is ready as soon as your team sends in their audits.' ?>
         <a href="<?= h(portal_url('team')) ?>"><?= $solo ? 'How to connect' : 'Invite your team' ?></a>.</p>
+    <?php elseif (!ai_reports_enabled()): ?>
+      <h2><?= $solo ? 'Your results are in' : "Your team's results are in" ?></h2>
+      <?php if ($finalPlan): ?>
+        <p class="muted">Your final plan is above. Want another angle? Make an AI draft yourself below.</p>
+      <?php elseif ($finalIncluded): ?>
+        <p>Our team is writing your final plan. It will be here within 2 business days, and we'll email you when it's ready.</p>
+      <?php else: ?>
+        <p>Make your AI report below in about a minute, then book a free call and we'll go over it with you.</p>
+      <?php endif; ?>
     <?php else: ?>
       <h2><?= $solo ? 'Your results are in' : "Your team's results are in" ?></h2>
       <p class="muted">Get your instant AI report now. It takes 1–2 minutes. <?= $finalIncluded ? 'Our team then follows up with your final plan.' : 'Then book a free call to go over it with us.' ?></p>
@@ -778,7 +788,20 @@ elseif ($page === 'report'):
     <p class="muted small">If we build your agents, your audit price is credited toward the build.</p>
   </section>
 
-  <?php if ($aiReport && !feedback_given($lid, 'owner')): ?>
+  <?php if ($audits && !ai_reports_enabled()): ?>
+    <section class="card" id="draft">
+      <h2>Get an AI report draft now</h2>
+      <p class="muted">Use your own ChatGPT or Claude. Your results are already filled in.</p>
+      <ol class="steps">
+        <li>Click <b>Copy report prompt</b> below.</li>
+        <li>Open <a href="https://chatgpt.com" target="_blank" rel="noopener">ChatGPT</a> or <a href="https://claude.ai" target="_blank" rel="noopener">Claude</a> (free accounts work).</li>
+        <li>Paste it in and send. Your report appears in about a minute.</li>
+      </ol>
+      <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist, $tools)); ?>
+    </section>
+  <?php endif; ?>
+
+  <?php if (($aiReport || (!ai_reports_enabled() && ($finalPlan || ($audits && !$finalIncluded)))) && !feedback_given($lid, 'owner')): ?>
     <section class="card" id="survey">
       <h2>Is this report right?</h2>
       <p class="muted">Two quick questions. We use your answers when we <?= $finalIncluded ? 'write your final plan' : 'go over it with you' ?>.</p>
@@ -799,10 +822,12 @@ elseif ($page === 'report'):
     </section>
   <?php endif; ?>
 
+  <?php if (ai_reports_enabled()): ?>
   <details>
     <summary>Copy the report prompt for ChatGPT or Claude</summary>
     <?php render_prompt_box(build_business_prompt($license, $profile, aggregate_audits($audits), $checklist, $tools)); ?>
   </details>
+  <?php endif; ?>
 
 <?php
 /* ---------------------------- Journey ---------------------------- */
