@@ -3,14 +3,30 @@
   "name": "Workflow Shadow Audit",
   "short_name": "Shadow Audit",
   "version": "1.1.0",
-  "description": "Read-only, privacy-safe workflow audit. Records only domains, time and tab-switch patterns to find SaaS bloat and automation opportunities.",
+  "description": "Private, read-only audit of where your workday goes. Finds the tasks you repeat and the AI agents that can do them.",
   "minimum_chrome_version": "110",
-  "permissions": ["tabs", "idle", "storage"],
+  "permissions": [
+    "tabs",
+    "idle",
+    "storage"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_title": "Workflow Shadow Audit",
-    "default_popup": "popup.html"
-  }
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "homepage_url": "https://sirenaflow.com/business/"
 }

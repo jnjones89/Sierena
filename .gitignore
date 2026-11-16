@@ -7,3 +7,4 @@ videos/founder-message.mp4
 business/includes/config.php
 swa-config.php
 *.sqlite
+dist/

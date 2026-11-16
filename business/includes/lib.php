@@ -1539,7 +1539,7 @@ function render_footer(): void
     $year  = date('Y');
     echo <<<HTML
 </main>
-<footer class="foot">© {$year} {$brand} · Payments processed securely by Stripe</footer>
+<footer class="foot">© {$year} {$brand} · Payments processed securely by Stripe · <a href="privacy.php">Privacy</a> · <a href="help.php">Help</a></footer>
 <script>
 document.querySelectorAll('[data-copy]').forEach(function (btn) {
   btn.addEventListener('click', function () {
