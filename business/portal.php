@@ -227,8 +227,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         if (!list_audits($lid)) {
             go('report', 'We need at least one audit from your team first.', 'error');
         }
-        if (reports_today($lid) >= (int) cfg('reports_per_day')) {
-            go('report', "You've reached today's limit. Please try again tomorrow.", 'error');
+        if (reports_left($license) <= 0) {
+            go('report', reports_today($lid) >= (int) cfg_opt('reports_per_day', 5)
+                ? "You've reached today's limit. Please try again tomorrow."
+                : "You've used all the instant AI reports included with your audit. Our team's final plan and the copy-and-paste prompt are still available.", 'error');
         }
         // Writing the report can take a minute or two.
         @set_time_limit(300);
@@ -780,8 +782,9 @@ elseif ($page === 'report'):
       <?php if ($audits && $active && ai_reports_enabled()): ?>
         <form class="inline" method="post" action="portal.php" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Writing your report… about 1–2 minutes';">
           <?= csrf_field() ?><input type="hidden" name="action" value="generate_report">
-          <button class="btn primary" type="submit"><?= $aiReport ? 'Update my instant AI report' : 'Get my instant AI report' ?></button>
+          <button class="btn primary" type="submit"<?= reports_left($license) <= 0 ? ' disabled' : '' ?>><?= $aiReport ? 'Update my instant AI report' : 'Get my instant AI report' ?></button>
         </form>
+        <span class="muted small"><?= reports_left($license) ?> left<?= license_monitoring($license) ? ' this month' : '' ?></span>
       <?php endif; ?>
       <a class="btn" href="<?= h((string) cfg('booking_url')) ?>" target="_blank" rel="noopener">Book a call to build these agents →</a>
     </div>

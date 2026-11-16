@@ -1286,6 +1286,27 @@ function save_report(int $licenseId, string $kind, string $content, string $mode
     return (int) db()->lastInsertId();
 }
 
+/**
+ * How many more instant AI reports this customer can generate.
+ * One purchase includes 'reports_per_purchase' (default 10). With Results Tracking on,
+ * they get 'reports_per_month' (default 5) per rolling 30 days instead. The daily cap applies on top.
+ */
+function reports_left(array $license): int
+{
+    $lid = (int) $license['id'];
+    $count = function (?int $sinceTs) use ($lid): int {
+        $sql = "SELECT COUNT(*) FROM reports WHERE license_id = ? AND kind = 'ai'" . ($sinceTs ? ' AND created_at > ?' : '');
+        $stmt = db()->prepare($sql);
+        $stmt->execute($sinceTs ? [$lid, gmdate('Y-m-d\TH:i:s\Z', $sinceTs)] : [$lid]);
+        return (int) $stmt->fetchColumn();
+    };
+    $left = license_monitoring($license)
+        ? (int) cfg_opt('reports_per_month', 5) - $count(time() - 30 * 86400)
+        : (int) cfg_opt('reports_per_purchase', 10) - $count(null);
+    $today = (int) cfg_opt('reports_per_day', 5) - reports_today($lid);
+    return max(0, min($left, $today));
+}
+
 function reports_today(int $licenseId): int
 {
     $stmt = db()->prepare("SELECT COUNT(*) FROM reports WHERE license_id = ? AND kind = 'ai' AND created_at > ?");

@@ -57,8 +57,10 @@ return [
     'anthropic_model'   => 'claude-opus-5-5',
     // low | medium | high — higher = more thorough but slower. "high" usually takes 1–2 minutes.
     'anthropic_effort'  => 'high',
-    // Instant reports a customer can generate per day.
-    'reports_per_day'   => 5,
+    // Limits on instant AI reports (only paying customers can generate them; free users never use Claude).
+    'reports_per_day'      => 5,   // per customer, per day
+    'reports_per_purchase' => 10,  // total for one Solo/Team Audit purchase
+    'reports_per_month'    => 5,   // while Results Tracking is on (rolling 30 days)
 
     // ---- GoHighLevel (optional) ----
     // Each destination is a sub-account with its own Private Integration token
